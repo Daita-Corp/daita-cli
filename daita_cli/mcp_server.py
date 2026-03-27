@@ -60,8 +60,13 @@ _TOOLS: list[Tool] = [
     ),
     Tool(
         name="list_deployed_agents",
-        description="List deployed agents with their configuration.",
-        inputSchema={"type": "object", "properties": {}},
+        description="List deployed agents from the most recent deployments.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "default": 20, "description": "Max agents to return"},
+            },
+        },
     ),
     # Deployments
     Tool(
@@ -82,15 +87,6 @@ _TOOLS: list[Tool] = [
                 "limit": {"type": "integer", "default": 10},
             },
             "required": ["project"],
-        },
-    ),
-    Tool(
-        name="rollback_deployment",
-        description="Rollback to a previous deployment by deployment ID.",
-        inputSchema={
-            "type": "object",
-            "properties": {"deployment_id": {"type": "string"}},
-            "required": ["deployment_id"],
         },
     ),
     Tool(
@@ -306,43 +302,6 @@ _TOOLS: list[Tool] = [
             },
         },
     ),
-    Tool(
-        name="get_conversation",
-        description="Get conversation details.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "conversation_id": {"type": "string"},
-                "user_id": {"type": "string", "default": "cli"},
-            },
-            "required": ["conversation_id"],
-        },
-    ),
-    Tool(
-        name="create_conversation",
-        description="Create a new conversation.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "agent_name": {"type": "string"},
-                "title": {"type": "string"},
-                "user_id": {"type": "string", "default": "cli"},
-            },
-            "required": ["agent_name"],
-        },
-    ),
-    Tool(
-        name="delete_conversation",
-        description="Delete a conversation.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "conversation_id": {"type": "string"},
-                "user_id": {"type": "string", "default": "cli"},
-            },
-            "required": ["conversation_id"],
-        },
-    ),
     # Local dev (require daita-agents)
     Tool(
         name="init_project",
@@ -494,7 +453,7 @@ async def _dispatch(client: DaitaAPIClient, name: str, args: dict) -> list[TextC
         return _ok(await client.get(f"/api/v1/agents/agents/{args['agent_id']}"))
 
     if name == "list_deployed_agents":
-        return _ok(await client.get("/api/v1/agents/agents/deployed"))
+        return _ok(await client.get("/api/v1/agents/agents/deployed", params={"limit": args.get("limit", 20)}))
 
     # Deployments
     if name == "list_deployments":
@@ -505,9 +464,6 @@ async def _dispatch(client: DaitaAPIClient, name: str, args: dict) -> list[TextC
             f"/api/v1/deployments/history/{args['project']}",
             params={"per_page": args.get("limit", 10)},
         ))
-
-    if name == "rollback_deployment":
-        return _ok(await client.post(f"/api/v1/deployments/rollback/{args['deployment_id']}"))
 
     if name == "delete_deployment":
         return _ok(await client.delete(f"/api/v1/deployments/{args['deployment_id']}"))
@@ -527,7 +483,7 @@ async def _dispatch(client: DaitaAPIClient, name: str, args: dict) -> list[TextC
         else:
             request["workflow_name"] = args["target_name"]
 
-        result = await client.post("/api/v1/executions/execute", json=request)
+        result = await client.post("/api/v1/autonomous/execute", json=request)
         execution_id = result["execution_id"]
 
         # Poll until done
@@ -535,7 +491,7 @@ async def _dispatch(client: DaitaAPIClient, name: str, args: dict) -> list[TextC
         deadline = time.time() + timeout
         while time.time() < deadline:
             await asyncio.sleep(1)
-            status_data = await client.get(f"/api/v1/executions/{execution_id}")
+            status_data = await client.get(f"/api/v1/autonomous/executions/{execution_id}")
             status = status_data.get("status", "")
             if status in ("completed", "success", "failed", "error", "cancelled"):
                 return _ok(status_data)
@@ -556,8 +512,9 @@ async def _dispatch(client: DaitaAPIClient, name: str, args: dict) -> list[TextC
 
     # Traces
     if name == "list_traces":
-        params = {k: args[k] for k in ("per_page", "status", "agent_id") if k in args}
-        return _ok(await client.get("/api/v1/traces/traces", params=params or None))
+        params = {k: args[k] for k in ("status", "agent_id") if k in args}
+        params["per_page"] = args.get("per_page", 10)
+        return _ok(await client.get("/api/v1/traces/traces", params=params))
 
     if name == "get_trace":
         return _ok(await client.get(f"/api/v1/traces/traces/{args['trace_id']}"))
@@ -604,7 +561,7 @@ async def _dispatch(client: DaitaAPIClient, name: str, args: dict) -> list[TextC
 
     # Webhooks
     if name == "list_webhooks":
-        return _ok(await client.get("/api/v1/webhooks/webhooks/list"))
+        return _ok(await client.get("/api/v1/webhooks/list"))
 
     # Conversations
     if name == "list_conversations":
@@ -612,24 +569,6 @@ async def _dispatch(client: DaitaAPIClient, name: str, args: dict) -> list[TextC
         if "agent_name" in args:
             params["agent_name"] = args["agent_name"]
         return _ok(await client.get("/api/v1/conversations", params=params))
-
-    if name == "get_conversation":
-        return _ok(await client.get(
-            f"/api/v1/conversations/{args['conversation_id']}",
-            params={"user_id": args.get("user_id", "cli")},
-        ))
-
-    if name == "create_conversation":
-        payload = {"agent_name": args["agent_name"], "user_id": args.get("user_id", "cli")}
-        if "title" in args:
-            payload["title"] = args["title"]
-        return _ok(await client.post("/api/v1/conversations", json=payload))
-
-    if name == "delete_conversation":
-        return _ok(await client.delete(
-            f"/api/v1/conversations/{args['conversation_id']}",
-            params={"user_id": args.get("user_id", "cli")},
-        ))
 
     return _err(f"Unknown tool: {name}")
 
