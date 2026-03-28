@@ -12,7 +12,7 @@ license = {text = "Apache-2.0"}
 requires-python = ">=3.11"
 keywords = ["ai", "agents", "cli", "mcp", "daita"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
