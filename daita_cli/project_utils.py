@@ -20,7 +20,7 @@ def ensure_project_root() -> Path:
     root = find_project_root()
     if not root:
         import click
-        raise click.ClickException("Not in a Daita project. Run 'daita init' first.")
+        raise click.ClickException("No daita-project.yaml found. Add one or run 'daita init' to scaffold a new project.")
     return root
 
 
