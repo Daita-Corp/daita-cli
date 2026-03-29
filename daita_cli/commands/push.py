@@ -13,6 +13,7 @@ import hashlib
 import os
 import sys
 import tempfile
+import uuid
 import zipfile
 from pathlib import Path
 
@@ -223,6 +224,7 @@ async def _deploy(
 
     payload = {
         "upload_id": upload_id,
+        "deployment_id": str(uuid.uuid4()),
         "project_name": project_name,
         "environment": environment,
         "framework_version": framework_version,
