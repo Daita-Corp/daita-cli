@@ -30,6 +30,7 @@ _FOCUS_CHOICES = ("all", "output", "spans", "decisions", "cost")
 async def _fetch_bundle(client: DaitaAPIClient, execution_id: str) -> dict:
     """Fetch execution + its spans + decisions in parallel. Missing pieces
     are tolerated — a failed execution may not have spans yet."""
+
     async def _safe(coro):
         try:
             return await coro
@@ -116,7 +117,11 @@ def _span_index(spans: list[dict]) -> dict[str, dict]:
             continue
         existing = by_name.get(name)
         s_dur = s.get("duration_ms") or s.get("duration") or 0
-        e_dur = (existing.get("duration_ms") or existing.get("duration") or 0) if existing else 0
+        e_dur = (
+            (existing.get("duration_ms") or existing.get("duration") or 0)
+            if existing
+            else 0
+        )
         if existing is None or s_dur > e_dur:
             by_name[name] = s
     return by_name
@@ -140,13 +145,15 @@ def _diff_spans(a: list[dict], b: list[dict]) -> list[dict]:
         db = _span_duration(ib.get(name, {})) if name in ib else None
         if da is None and db is None:
             continue
-        out.append({
-            "name": name,
-            "a_ms": da,
-            "b_ms": db,
-            "delta_ms": (db - da) if (da is not None and db is not None) else None,
-            "only_in": "a" if db is None else ("b" if da is None else None),
-        })
+        out.append(
+            {
+                "name": name,
+                "a_ms": da,
+                "b_ms": db,
+                "delta_ms": (db - da) if (da is not None and db is not None) else None,
+                "only_in": "a" if db is None else ("b" if da is None else None),
+            }
+        )
     # Sort by absolute delta descending so the biggest movers surface first
     out.sort(
         key=lambda r: abs(r["delta_ms"]) if r["delta_ms"] is not None else 0,
@@ -214,9 +221,8 @@ def _metric(bundle: dict, keys: tuple[str, ...]):
     """Pull a numeric metric from the execution payload first, then fall back
     to the trace payload. Cost and token counts live on the trace record in
     this backend; duration lives on both."""
-    return (
-        pick(bundle.get("execution") or {}, *keys, default=None)
-        or pick(bundle.get("trace") or {}, *keys, default=None)
+    return pick(bundle.get("execution") or {}, *keys, default=None) or pick(
+        bundle.get("trace") or {}, *keys, default=None
     )
 
 
@@ -227,16 +233,21 @@ def build_summary(bundle_a: dict, bundle_b: dict) -> dict:
         "a": pick(ea, *_EXEC_ID_KEYS),
         "b": pick(eb, *_EXEC_ID_KEYS),
         "status": {"a": ea.get("status"), "b": eb.get("status")},
-        "duration_ms": _delta(_metric(bundle_a, _DURATION_KEYS),
-                              _metric(bundle_b, _DURATION_KEYS)),
-        "cost_usd": _delta(_metric(bundle_a, _COST_KEYS),
-                           _metric(bundle_b, _COST_KEYS)),
-        "tokens_in": _delta(_metric(bundle_a, _TOKENS_IN_KEYS),
-                            _metric(bundle_b, _TOKENS_IN_KEYS)),
-        "tokens_out": _delta(_metric(bundle_a, _TOKENS_OUT_KEYS),
-                             _metric(bundle_b, _TOKENS_OUT_KEYS)),
-        "output": _output_diff(pick(ea, *_RESULT_KEYS, default=None),
-                               pick(eb, *_RESULT_KEYS, default=None)),
+        "duration_ms": _delta(
+            _metric(bundle_a, _DURATION_KEYS), _metric(bundle_b, _DURATION_KEYS)
+        ),
+        "cost_usd": _delta(
+            _metric(bundle_a, _COST_KEYS), _metric(bundle_b, _COST_KEYS)
+        ),
+        "tokens_in": _delta(
+            _metric(bundle_a, _TOKENS_IN_KEYS), _metric(bundle_b, _TOKENS_IN_KEYS)
+        ),
+        "tokens_out": _delta(
+            _metric(bundle_a, _TOKENS_OUT_KEYS), _metric(bundle_b, _TOKENS_OUT_KEYS)
+        ),
+        "output": _output_diff(
+            pick(ea, *_RESULT_KEYS, default=None), pick(eb, *_RESULT_KEYS, default=None)
+        ),
         "spans": _diff_spans(bundle_a["spans"], bundle_b["spans"]),
         "decisions": _diff_decisions(bundle_a["decisions"], bundle_b["decisions"]),
     }
@@ -315,7 +326,9 @@ def render_diff_text(summary: dict, focus: str = "all") -> str:
                         f"{arrow}{abs(s['delta_ms'])}ms"
                     )
         else:
-            changed = [s for s in spans if s["delta_ms"] not in (None, 0) or s["only_in"]]
+            changed = [
+                s for s in spans if s["delta_ms"] not in (None, 0) or s["only_in"]
+            ]
             lines.append(f"Spans        {len(changed)} differed (use --focus spans)")
 
     if focus in ("all", "decisions"):
@@ -335,7 +348,9 @@ def render_diff_text(summary: dict, focus: str = "all") -> str:
             elif diff_count == 0:
                 lines.append(f"Decisions    {d['count_a']} identical")
             else:
-                lines.append(f"Decisions    {d['count_a']} vs {d['count_b']}, {diff_count} differed")
+                lines.append(
+                    f"Decisions    {d['count_a']} vs {d['count_b']}, {diff_count} differed"
+                )
 
     return "\n".join(lines)
 
@@ -348,10 +363,18 @@ def render_diff_text(summary: dict, focus: str = "all") -> str:
 @click.command("diff")
 @click.argument("execution_a")
 @click.argument("execution_b")
-@click.option("--focus", type=click.Choice(_FOCUS_CHOICES), default="all", show_default=True,
-              help="Drill into one dimension.")
-@click.option("--unified", is_flag=True,
-              help="With --focus output, print a git-style unified diff of the final outputs.")
+@click.option(
+    "--focus",
+    type=click.Choice(_FOCUS_CHOICES),
+    default="all",
+    show_default=True,
+    help="Drill into one dimension.",
+)
+@click.option(
+    "--unified",
+    is_flag=True,
+    help="With --focus output, print a git-style unified diff of the final outputs.",
+)
 @api_command
 async def diff_command(
     client: DaitaAPIClient,
@@ -388,9 +411,11 @@ async def diff_command(
     if unified and focus == "output" and summary["output"]["changed"]:
         a, b = await _refetch_for_unified()
         click.echo("\n--- unified output diff ---")
-        click.echo(_unified_output_diff(
-            a["execution"].get("result"), b["execution"].get("result")
-        ))
+        click.echo(
+            _unified_output_diff(
+                a["execution"].get("result"), b["execution"].get("result")
+            )
+        )
 
     # Non-zero exit when executions diverged on status — useful for CI.
     if summary["status"]["a"] != summary["status"]["b"]:

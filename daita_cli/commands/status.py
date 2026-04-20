@@ -45,16 +45,26 @@ def status_command(ctx):
             if project_name:
                 params["project_name"] = project_name
             try:
-                data = await client.get("/api/v1/deployments/api-key", params=params or None)
+                data = await client.get(
+                    "/api/v1/deployments/api-key", params=params or None
+                )
             except APIError as e:
                 formatter.error("API_ERROR", str(e))
                 return
 
-            deployments = data if isinstance(data, list) else data.get("deployments", [])
+            deployments = (
+                data if isinstance(data, list) else data.get("deployments", [])
+            )
 
             if formatter.is_json:
                 import json
-                print(json.dumps({"project": project_name, "deployments": deployments}, default=str))
+
+                print(
+                    json.dumps(
+                        {"project": project_name, "deployments": deployments},
+                        default=str,
+                    )
+                )
                 return
 
             if not deployments:
@@ -82,6 +92,7 @@ def _local_project_name() -> str | None:
     """Walk upward from cwd looking for daita-project.yaml."""
     try:
         import yaml
+
         current = Path.cwd()
         for p in [current] + list(current.parents):
             cfg = p / "daita-project.yaml"

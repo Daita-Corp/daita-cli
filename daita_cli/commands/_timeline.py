@@ -51,8 +51,12 @@ def _start_ms(span: dict) -> float:
     started = _get(span, "startTime", "started_at", "start_time")
     if isinstance(started, str):
         from datetime import datetime
+
         try:
-            return datetime.fromisoformat(started.replace("Z", "+00:00")).timestamp() * 1000
+            return (
+                datetime.fromisoformat(started.replace("Z", "+00:00")).timestamp()
+                * 1000
+            )
         except ValueError:
             return 0.0
     return 0.0
@@ -74,7 +78,9 @@ def build_tree(spans: list[dict]) -> list[SpanNode]:
             continue
         nodes[nid] = SpanNode(
             span_id=nid,
-            name=_get(s, "operationName", "name", "operation_name", default="(unnamed)"),
+            name=_get(
+                s, "operationName", "name", "operation_name", default="(unnamed)"
+            ),
             start_ms=_start_ms(s),
             duration_ms=float(_get(s, "duration_ms", "duration", default=0) or 0),
             status=_get(s, "status", default=""),
@@ -111,7 +117,9 @@ def build_tree(spans: list[dict]) -> list[SpanNode]:
     return roots
 
 
-def flag_slow(roots: list[SpanNode], total_ms: float, ratio: float = _SLOW_RATIO) -> None:
+def flag_slow(
+    roots: list[SpanNode], total_ms: float, ratio: float = _SLOW_RATIO
+) -> None:
     """Mark spans whose duration exceeds `ratio` of total trace duration."""
     if total_ms <= 0:
         return
@@ -213,7 +221,9 @@ def render_timeline(
             return
         connector = "└─ " if node.depth and is_last else ("├─ " if node.depth else "")
         label = (prefix + connector + node.name)[:name_col].ljust(name_col)
-        bar = _render_bar(node.start_ms, node.duration_ms, total_ms, bar_width, ascii_only)
+        bar = _render_bar(
+            node.start_ms, node.duration_ms, total_ms, bar_width, ascii_only
+        )
         tag = " ⚠ slow" if node.slow else ""
         lines.append(f"{label}  [{bar}]  {_fmt_duration(node.duration_ms)}{tag}")
 
@@ -228,7 +238,9 @@ def render_timeline(
     fill = _FILL_ASCII if ascii_only else _FILL_UNICODE
     empty = _EMPTY_ASCII if ascii_only else _EMPTY_UNICODE
     lines.append("")
-    lines.append(f"Legend: {fill} active   {empty} waiting   ⚠ exceeds {int(_SLOW_RATIO * 100)}% of total")
+    lines.append(
+        f"Legend: {fill} active   {empty} waiting   ⚠ exceeds {int(_SLOW_RATIO * 100)}% of total"
+    )
 
     return "\n".join(lines)
 
@@ -243,12 +255,14 @@ def compute_bottlenecks(spans: list[dict]) -> list[dict]:
 
     def _walk(n: SpanNode):
         if n.slow:
-            out.append({
-                "span_id": n.span_id,
-                "name": n.name,
-                "duration_ms": n.duration_ms,
-                "share": round(n.duration_ms / total, 3) if total > 0 else 0,
-            })
+            out.append(
+                {
+                    "span_id": n.span_id,
+                    "name": n.name,
+                    "duration_ms": n.duration_ms,
+                    "share": round(n.duration_ms / total, 3) if total > 0 else 0,
+                }
+            )
         for c in n.children:
             _walk(c)
 

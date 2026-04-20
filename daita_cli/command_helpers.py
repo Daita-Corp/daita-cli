@@ -40,7 +40,9 @@ def normalize_rows(items: list[dict], schema: dict[str, tuple[str, ...]]) -> lis
 
     `schema` maps output column -> candidate source keys (first hit wins).
     """
-    return [{out: pick(item, *sources) for out, sources in schema.items()} for item in items]
+    return [
+        {out: pick(item, *sources) for out, sources in schema.items()} for item in items
+    ]
 
 
 def api_command(f):
@@ -50,6 +52,7 @@ def api_command(f):
     2. Injects `client` (DaitaAPIClient) and `formatter` (OutputFormatter) as first two args
     3. Maps exceptions to exit codes: 0=ok, 1=error, 2=auth, 130=interrupt
     """
+
     @functools.wraps(f)
     @click.pass_context
     def wrapper(ctx, *args, **kwargs):

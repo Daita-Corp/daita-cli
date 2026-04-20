@@ -52,7 +52,9 @@ from daita_cli.commands.doctor import doctor_command
 
 @click.group()
 @click.version_option(version=__version__, prog_name="daita")
-@click.option("--output", "-o", type=click.Choice(["json", "text", "table"]), help="Output format")
+@click.option(
+    "--output", "-o", type=click.Choice(["json", "text", "table"]), help="Output format"
+)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--quiet", "-q", is_flag=True, help="Suppress non-error output")
 @click.pass_context
@@ -87,6 +89,7 @@ cli.add_command(init_command)
 cli.add_command(create_group)
 cli.add_command(test_command)
 
+
 # Backward compat hidden alias: `daita execution-logs <id>` → `daita executions logs <id>`
 @cli.command("execution-logs", hidden=True)
 @click.argument("execution_id")
@@ -95,6 +98,7 @@ cli.add_command(test_command)
 def _execution_logs_alias(ctx, execution_id, follow):
     """Deprecated: use `daita executions logs <id>`."""
     from daita_cli.commands.executions import execution_logs
+
     ctx.invoke(execution_logs, execution_id=execution_id, follow=follow)
 
 
@@ -103,6 +107,7 @@ def mcp_server_command():
     """Start the MCP server for coding agent integrations."""
     import asyncio
     from daita_cli.mcp_server import run_server
+
     asyncio.run(run_server())
 
 

@@ -36,6 +36,7 @@ dev = [
     "pytest-asyncio>=0.26",
     "respx>=0.21",
     "pytest-cov>=4.1",
+    "black>=24.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -46,3 +47,7 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = ["."]
 addopts = "--tb=short -v"
+
+[tool.black]
+line-length = 88
+target-version = ["py311", "py312"]

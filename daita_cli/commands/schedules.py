@@ -13,7 +13,9 @@ def schedules():
 async def list_schedules(client, formatter):
     """List schedules."""
     data = await client.get("/api/v1/schedules/")
-    items = data if isinstance(data, list) else data.get("schedules", data.get("items", []))
+    items = (
+        data if isinstance(data, list) else data.get("schedules", data.get("items", []))
+    )
     formatter.list_items(
         items,
         columns=["id", "name", "cron", "agent_name", "status", "next_run"],
@@ -35,7 +37,9 @@ async def show_schedule(client, formatter, schedule_id):
 @api_command
 async def pause_schedule(client, formatter, schedule_id):
     """Pause a schedule."""
-    data = await client.patch(f"/api/v1/schedules/{schedule_id}", json={"enabled": False})
+    data = await client.patch(
+        f"/api/v1/schedules/{schedule_id}", json={"enabled": False}
+    )
     formatter.success(data, message=f"Schedule {schedule_id} paused.")
 
 
@@ -44,5 +48,7 @@ async def pause_schedule(client, formatter, schedule_id):
 @api_command
 async def resume_schedule(client, formatter, schedule_id):
     """Resume a paused schedule."""
-    data = await client.patch(f"/api/v1/schedules/{schedule_id}", json={"enabled": True})
+    data = await client.patch(
+        f"/api/v1/schedules/{schedule_id}", json={"enabled": True}
+    )
     formatter.success(data, message=f"Schedule {schedule_id} resumed.")

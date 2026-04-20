@@ -36,7 +36,9 @@ def _apply_overrides(request: dict, override_json: str | None) -> dict:
     return {**request, **patch}
 
 
-def _build_replay_request(original: dict, *, overrides: str | None, timeout: int) -> dict:
+def _build_replay_request(
+    original: dict, *, overrides: str | None, timeout: int
+) -> dict:
     """Translate an original execution record into a new submit request."""
     # Fields we inherit from the original. Missing fields are tolerated.
     source_meta = {
@@ -62,7 +64,7 @@ def _build_replay_request(original: dict, *, overrides: str | None, timeout: int
         if not target_name:
             raise click.ClickException(
                 "Could not determine agent/workflow from original execution. "
-                "Pass --override '{\"agent_name\": \"...\"}' to fix."
+                'Pass --override \'{"agent_name": "..."}\' to fix.'
             )
         if target_type == "workflow":
             base["workflow_name"] = target_name
@@ -105,11 +107,31 @@ async def replay_execution(
 
 @click.command("replay")
 @click.argument("execution_id")
-@click.option("--deployment", "deployment_id", help="Replay against a specific deployment version.")
-@click.option("--override", help="JSON patch to merge onto the replay request (e.g. '{\"task\": \"validate\"}').")
-@click.option("--timeout", default=300, show_default=True, type=int, help="Seconds to wait for completion.")
-@click.option("--diff", "auto_diff", is_flag=True, help="Run `daita diff` against the original when complete.")
-@click.option("--follow", "-f", is_flag=True, help="Print status updates during polling.")
+@click.option(
+    "--deployment",
+    "deployment_id",
+    help="Replay against a specific deployment version.",
+)
+@click.option(
+    "--override",
+    help='JSON patch to merge onto the replay request (e.g. \'{"task": "validate"}\').',
+)
+@click.option(
+    "--timeout",
+    default=300,
+    show_default=True,
+    type=int,
+    help="Seconds to wait for completion.",
+)
+@click.option(
+    "--diff",
+    "auto_diff",
+    is_flag=True,
+    help="Run `daita diff` against the original when complete.",
+)
+@click.option(
+    "--follow", "-f", is_flag=True, help="Print status updates during polling."
+)
 @api_command
 async def replay_command(
     client: DaitaAPIClient,
@@ -152,7 +174,9 @@ async def replay_command(
         final = await _run()
 
     if final.get("status") in TERMINAL_OK:
-        formatter.success(final, message=f"  ✓ replay completed → {final.get('execution_id')}")
+        formatter.success(
+            final, message=f"  ✓ replay completed → {final.get('execution_id')}"
+        )
     else:
         formatter.error(
             "REPLAY_FAILED",
@@ -167,6 +191,7 @@ async def replay_command(
             return
         # Re-enter via the installed command so flag handling stays consistent.
         from daita_cli.commands.diff import compute_diff
+
         summary = await compute_diff(client, execution_id, new_id)
         click.echo("")
         _print_diff(formatter, summary)
@@ -175,6 +200,7 @@ async def replay_command(
 def _print_diff(formatter, summary: dict) -> None:
     """Tiny delegate so `--diff` doesn't need to shell out to another command."""
     from daita_cli.commands.diff import render_diff_text
+
     if formatter.is_json:
         print(json.dumps(summary, default=str))
     else:

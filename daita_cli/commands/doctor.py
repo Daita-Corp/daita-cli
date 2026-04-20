@@ -25,7 +25,6 @@ from daita_cli import __version__
 from daita_cli.api_client import DaitaAPIClient, APIError, AuthError
 from daita_cli.output import OutputFormatter
 
-
 # ---------------------------------------------------------------------------
 # Check model
 # ---------------------------------------------------------------------------
@@ -45,12 +44,12 @@ class Level(str, Enum):
 @dataclass
 class CheckResult:
     id: str
-    category: str   # "env" | "platform" | "sources"
+    category: str  # "env" | "platform" | "sources"
     label: str
     level: Level
     message: str = ""
     fix: str | None = None
-    fixable: bool = False       # True if --fix can auto-remediate
+    fixable: bool = False  # True if --fix can auto-remediate
     details: dict = field(default_factory=dict)
 
     def as_dict(self) -> dict:
@@ -125,6 +124,7 @@ async def check_framework() -> CheckResult:
     try:
         import daita.agents  # noqa: F401
         import importlib.metadata
+
         try:
             version = importlib.metadata.version("daita-agents")
         except importlib.metadata.PackageNotFoundError:
@@ -157,6 +157,7 @@ async def check_framework() -> CheckResult:
 async def check_api_connectivity(timeout: float = 5.0) -> CheckResult:
     base = os.getenv("DAITA_API_ENDPOINT", "https://api.daita-tech.io").rstrip("/")
     import time
+
     try:
         async with httpx.AsyncClient(timeout=timeout) as c:
             t0 = time.monotonic()
@@ -254,6 +255,7 @@ async def check_project_config() -> CheckResult:
         )
     try:
         import yaml
+
         with cfg.open() as f:
             data = yaml.safe_load(f) or {}
     except Exception as e:
@@ -297,7 +299,9 @@ PLATFORM_CHECKS: tuple[CheckFn, ...] = (
 )
 
 
-async def _run_checks(checks: tuple[CheckFn, ...], per_check_timeout: float) -> list[CheckResult]:
+async def _run_checks(
+    checks: tuple[CheckFn, ...], per_check_timeout: float
+) -> list[CheckResult]:
     async def _guarded(fn: CheckFn) -> CheckResult:
         try:
             return await asyncio.wait_for(fn(), timeout=per_check_timeout)
@@ -348,8 +352,11 @@ async def _attempt_fix(result: CheckResult) -> bool:
         return False
     if result.id == "env.framework.missing":
         import subprocess
+
         try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "daita-agents"])
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", "daita-agents"]
+            )
             return True
         except subprocess.CalledProcessError:
             return False
@@ -384,8 +391,10 @@ def _render_tty(results: list[CheckResult]) -> str:
         f"{counts[Level.OK]} ok"
     )
     lines.append(summary)
-    lines.append("(note: data-source probes run from this machine; "
-                 "cloud-runtime reachability may differ)")
+    lines.append(
+        "(note: data-source probes run from this machine; "
+        "cloud-runtime reachability may differ)"
+    )
     return "\n".join(lines)
 
 
@@ -410,11 +419,26 @@ def _exit_code(results: list[CheckResult], fail_on: Level) -> int:
 @click.command("doctor")
 @click.option("--env-only", is_flag=True, help="Only run environment checks.")
 @click.option("--platform-only", is_flag=True, help="Only run platform/API checks.")
-@click.option("--fail-on", type=click.Choice(["error", "warn"]), default="error",
-              show_default=True, help="Exit non-zero if any check is at or above this level.")
-@click.option("--fix", is_flag=True, help="Attempt to auto-fix fixable issues (pip installs only).")
-@click.option("--timeout", "per_check_timeout", default=5.0, show_default=True, type=float,
-              help="Per-check timeout in seconds.")
+@click.option(
+    "--fail-on",
+    type=click.Choice(["error", "warn"]),
+    default="error",
+    show_default=True,
+    help="Exit non-zero if any check is at or above this level.",
+)
+@click.option(
+    "--fix",
+    is_flag=True,
+    help="Attempt to auto-fix fixable issues (pip installs only).",
+)
+@click.option(
+    "--timeout",
+    "per_check_timeout",
+    default=5.0,
+    show_default=True,
+    type=float,
+    help="Per-check timeout in seconds.",
+)
 @click.pass_context
 def doctor_command(
     ctx,
@@ -440,7 +464,9 @@ def doctor_command(
                 per_check_timeout=per_check_timeout,
             )
         if fix:
-            fixable = [r for r in results if r.fixable and r.level in (Level.ERROR, Level.WARN)]
+            fixable = [
+                r for r in results if r.fixable and r.level in (Level.ERROR, Level.WARN)
+            ]
             for r in fixable:
                 async with spinner(f"Fixing {r.id}…", formatter=formatter):
                     ok = await _attempt_fix(r)
@@ -451,11 +477,17 @@ def doctor_command(
     results = asyncio.run(_main())
 
     if formatter.is_json:
-        print(json.dumps({
-            "version": __version__,
-            "results": [r.as_dict() for r in results],
-            "counts": {lvl.value: n for lvl, n in _count(results).items()},
-        }, indent=2, default=str))
+        print(
+            json.dumps(
+                {
+                    "version": __version__,
+                    "results": [r.as_dict() for r in results],
+                    "counts": {lvl.value: n for lvl, n in _count(results).items()},
+                },
+                indent=2,
+                default=str,
+            )
+        )
     else:
         click.echo(_render_tty(results))
 

@@ -17,7 +17,8 @@ from daita_cli.output import OutputFormatter
 @click.command("init")
 @click.argument("project_name", required=False)
 @click.option(
-    "--type", "project_type",
+    "--type",
+    "project_type",
     default="basic",
     type=click.Choice(["basic", "analysis", "pipeline"]),
     help="Project type",
@@ -70,12 +71,16 @@ async def _init(project_name, project_type, force, formatter):
         click.echo(f"   2. export OPENAI_API_KEY=your_key_here")
         click.echo(f"   3. pip install -r requirements.txt")
         click.echo(f"   4. daita test              # Test locally (free)")
-        click.echo(f"   5. daita push              # Deploy to cloud (requires API key)")
+        click.echo(
+            f"   5. daita push              # Deploy to cloud (requires API key)"
+        )
         click.echo(f"")
         click.echo(f"Project layout:")
         click.echo(f"   agents/     one file per agent (a starter is included)")
         click.echo(f"   workflows/  multi-agent pipelines")
-        click.echo(f"   skills/     reusable instructions + tools attachable to any agent")
+        click.echo(
+            f"   skills/     reusable instructions + tools attachable to any agent"
+        )
         click.echo(f"   tests/      pytest suite")
         click.echo(f"   data/       local test fixtures")
     else:
@@ -94,6 +99,7 @@ def _create_structure(project_dir: Path):
 def _create_config(project_dir: Path, project_name: str):
     try:
         import importlib.metadata
+
         version = importlib.metadata.version("daita-agents")
     except Exception:
         version = "0.12.1"
@@ -245,6 +251,7 @@ if __name__ == "__main__":
 def _create_support_files(project_dir: Path, project_name: str):
     try:
         import importlib.metadata
+
         framework_version = importlib.metadata.version("daita-agents")
     except Exception:
         framework_version = "0.12.1"

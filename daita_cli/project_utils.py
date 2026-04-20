@@ -20,12 +20,16 @@ def ensure_project_root() -> Path:
     root = find_project_root()
     if not root:
         import click
-        raise click.ClickException("No daita-project.yaml found. Add one or run 'daita init' to scaffold a new project.")
+
+        raise click.ClickException(
+            "No daita-project.yaml found. Add one or run 'daita init' to scaffold a new project."
+        )
     return root
 
 
 def load_project_config(project_root: Path) -> Optional[dict]:
     import yaml
+
     cfg = project_root / "daita-project.yaml"
     if not cfg.exists():
         return None

@@ -28,6 +28,7 @@ async def test_conversations_fully_removed():
     assert not any("conversation" in n.lower() for n in names)
 
     from daita_cli.main import cli
+
     assert "conversations" not in cli.commands
 
 
@@ -36,7 +37,9 @@ async def test_list_agents_tool(monkeypatch):
     monkeypatch.setenv("DAITA_API_KEY", "test-key")
     with respx.mock(base_url="https://api.daita-tech.io") as mock:
         mock.get("/api/v1/agents/agents").mock(
-            return_value=httpx.Response(200, json={"agents": [{"id": "a1", "name": "my_agent"}]})
+            return_value=httpx.Response(
+                200, json={"agents": [{"id": "a1", "name": "my_agent"}]}
+            )
         )
         result = await call_tool("list_agents", {})
     assert len(result) == 1
@@ -48,6 +51,7 @@ async def test_list_agents_tool(monkeypatch):
 async def test_missing_api_key_raises():
     """Errors raise — the MCP SDK wraps them as isError results."""
     import os
+
     old = os.environ.pop("DAITA_API_KEY", None)
     try:
         with pytest.raises(AuthError):
@@ -87,7 +91,9 @@ async def test_local_tools_do_not_require_framework(monkeypatch):
     # the framework guard doesn't trip. Look them up in the registry directly.
     for name in ("init_project", "create_agent", "create_workflow"):
         tool_def = mcp._REGISTRY[name]
-        assert tool_def.needs_framework is False, f"{name} should not require daita-agents"
+        assert (
+            tool_def.needs_framework is False
+        ), f"{name} should not require daita-agents"
 
     # test_agent is the only local tool that needs it.
     assert mcp._REGISTRY["test_agent"].needs_framework is True
@@ -104,14 +110,26 @@ async def test_run_agent_emits_progress(monkeypatch):
         # First poll → running, second poll → completed
         mock.get("/api/v1/executions/exec-123").mock(
             side_effect=[
-                httpx.Response(200, json={"status": "running", "execution_id": "exec-123"}),
-                httpx.Response(200, json={"status": "completed", "execution_id": "exec-123", "result": "ok"}),
+                httpx.Response(
+                    200, json={"status": "running", "execution_id": "exec-123"}
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "status": "completed",
+                        "execution_id": "exec-123",
+                        "result": "ok",
+                    },
+                ),
             ]
         )
-        result = await call_tool("run_agent", {
-            "target_name": "my_agent",
-            "timeout_seconds": 30,
-        })
+        result = await call_tool(
+            "run_agent",
+            {
+                "target_name": "my_agent",
+                "timeout_seconds": 30,
+            },
+        )
     data = json.loads(result[0].text)
     assert data["status"] == "completed"
     assert data["result"] == "ok"
@@ -126,10 +144,15 @@ async def test_run_agent_timeout_raises(monkeypatch):
             return_value=httpx.Response(200, json={"execution_id": "exec-456"})
         )
         mock.get("/api/v1/executions/exec-456").mock(
-            return_value=httpx.Response(200, json={"status": "running", "execution_id": "exec-456"})
+            return_value=httpx.Response(
+                200, json={"status": "running", "execution_id": "exec-456"}
+            )
         )
         with pytest.raises(TimeoutError, match="exec-456"):
-            await call_tool("run_agent", {
-                "target_name": "my_agent",
-                "timeout_seconds": 2,  # short so the test finishes fast
-            })
+            await call_tool(
+                "run_agent",
+                {
+                    "target_name": "my_agent",
+                    "timeout_seconds": 2,  # short so the test finishes fast
+                },
+            )

@@ -28,9 +28,17 @@ from daita_cli.project_utils import ensure_project_root, load_project_config
 _DEFAULT_BASE = "https://api.daita-tech.io"
 
 _EXCLUDE_DIRS = {
-    ".daita", "__pycache__", ".git", ".pytest_cache",
-    "venv", "env", ".venv", "node_modules", ".mypy_cache",
-    "tests", "data",
+    ".daita",
+    "__pycache__",
+    ".git",
+    ".pytest_cache",
+    "venv",
+    "env",
+    ".venv",
+    "node_modules",
+    ".mypy_cache",
+    "tests",
+    "data",
 }
 _EXCLUDE_FILES = {".env", ".env.local"}
 
@@ -52,7 +60,9 @@ def lambda_handler(event, context):
 
 @click.command("push")
 @click.option("--force", is_flag=True, help="Skip confirmation")
-@click.option("--dry-run", is_flag=True, help="Show what would be deployed without deploying")
+@click.option(
+    "--dry-run", is_flag=True, help="Show what would be deployed without deploying"
+)
 @click.pass_context
 def push_command(ctx, force, dry_run):
     """Deploy current project to the cloud."""
@@ -112,7 +122,9 @@ async def _push(force: bool, dry_run: bool, formatter: OutputFormatter, verbose:
 
         # Upload
         formatter.progress("  Uploading package...")
-        upload_result = await _upload(package_path, project_name, environment, base_url, headers, verbose)
+        upload_result = await _upload(
+            package_path, project_name, environment, base_url, headers, verbose
+        )
         upload_id = upload_result["upload_id"]
 
         if verbose:
@@ -122,11 +134,21 @@ async def _push(force: bool, dry_run: bool, formatter: OutputFormatter, verbose:
         formatter.progress("  Deploying...")
         framework_version = _detect_framework_version(project_root)
         deploy_result = await _deploy(
-            upload_id, project_name, environment, framework_version, config, base_url, headers, verbose
+            upload_id,
+            project_name,
+            environment,
+            framework_version,
+            config,
+            base_url,
+            headers,
+            verbose,
         )
 
         formatter.success(
-            {"deployment_id": deploy_result.get("deployment_id", ""), "environment": environment},
+            {
+                "deployment_id": deploy_result.get("deployment_id", ""),
+                "environment": environment,
+            },
             message=(
                 f"\n  Deployed '{project_name}' to {environment}\n"
                 f"  Deployment ID: {deploy_result.get('deployment_id', 'N/A')}\n"
@@ -145,7 +167,11 @@ def _create_package(project_root: Path, config: dict, verbose: bool) -> Path:
 
     with zipfile.ZipFile(package_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for item in project_root.iterdir():
-            if item.is_dir() and item.name not in _EXCLUDE_DIRS and not item.name.startswith("."):
+            if (
+                item.is_dir()
+                and item.name not in _EXCLUDE_DIRS
+                and not item.name.startswith(".")
+            ):
                 for file_path in item.rglob("*"):
                     if file_path.is_file() and file_path.name not in _EXCLUDE_FILES:
                         arc = f"{item.name}/{file_path.relative_to(item)}"
@@ -214,11 +240,19 @@ async def _deploy(
     verbose: bool,
 ) -> dict:
     agents = [
-        {"name": a.get("name"), "type": a.get("type", "standard"), "enabled": a.get("enabled", True)}
+        {
+            "name": a.get("name"),
+            "type": a.get("type", "standard"),
+            "enabled": a.get("enabled", True),
+        }
         for a in config.get("agents", [])
     ]
     workflows = [
-        {"name": w.get("name"), "type": w.get("type", "basic"), "enabled": w.get("enabled", True)}
+        {
+            "name": w.get("name"),
+            "type": w.get("type", "basic"),
+            "enabled": w.get("enabled", True),
+        }
         for w in config.get("workflows", [])
     ]
 
@@ -253,7 +287,9 @@ async def _deploy(
             detail = resp.json().get("detail", resp.text)
         except Exception:
             detail = resp.text
-        raise click.ClickException(f"Deployment failed (HTTP {resp.status_code}): {detail}")
+        raise click.ClickException(
+            f"Deployment failed (HTTP {resp.status_code}): {detail}"
+        )
 
 
 def _detect_framework_version(project_root: Path) -> str:
@@ -269,6 +305,7 @@ def _detect_framework_version(project_root: Path) -> str:
                             return v
     try:
         import importlib.metadata
+
         return importlib.metadata.version("daita-agents")
     except Exception:
         return "0.12.1"

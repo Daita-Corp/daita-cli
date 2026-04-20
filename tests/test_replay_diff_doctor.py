@@ -22,7 +22,6 @@ from daita_cli.commands.doctor import (
 )
 from daita_cli.commands.replay import _build_replay_request
 
-
 # ---------------------------------------------------------------------------
 # _timeline
 # ---------------------------------------------------------------------------
@@ -87,10 +86,20 @@ def test_render_timeline_camelcase_api_shape_renders_non_empty():
     """If build_tree recognizes the camelCase schema, render_timeline should
     produce populated output (not 'No spans to display')."""
     spans = [
-        {"spanId": "1", "parentSpanId": None, "operationName": "pipeline",
-         "startTime": "2026-01-01T00:00:00+00:00", "duration": 1000},
-        {"spanId": "2", "parentSpanId": "1", "operationName": "step_a",
-         "startTime": "2026-01-01T00:00:00+00:00", "duration": 300},
+        {
+            "spanId": "1",
+            "parentSpanId": None,
+            "operationName": "pipeline",
+            "startTime": "2026-01-01T00:00:00+00:00",
+            "duration": 1000,
+        },
+        {
+            "spanId": "2",
+            "parentSpanId": "1",
+            "operationName": "step_a",
+            "startTime": "2026-01-01T00:00:00+00:00",
+            "duration": 300,
+        },
     ]
     out = render_timeline(spans, width=80, ascii_only=True)
     assert "No spans" not in out
@@ -205,8 +214,15 @@ def test_build_replay_request_rejects_malformed_override():
 # ---------------------------------------------------------------------------
 
 
-def _bundle(execution_id, status="completed", duration=1000, cost=0.01, result="hello",
-            spans=None, decisions=None):
+def _bundle(
+    execution_id,
+    status="completed",
+    duration=1000,
+    cost=0.01,
+    result="hello",
+    spans=None,
+    decisions=None,
+):
     return {
         "execution": {
             "execution_id": execution_id,
@@ -243,10 +259,14 @@ def test_diff_decisions_uses_span_id_fallback_for_missing_top_level_id():
     """DecisionEvent has no `id` field — match on data.span_id instead."""
     from daita_cli.commands.diff import _diff_decisions
 
-    a = [{"eventType": "decision_completed", "data": {"span_id": "sp1"}},
-         {"eventType": "decision_completed", "data": {"span_id": "sp2"}}]
-    b = [{"eventType": "decision_completed", "data": {"span_id": "sp1"}},
-         {"eventType": "decision_completed", "data": {"span_id": "sp3"}}]
+    a = [
+        {"eventType": "decision_completed", "data": {"span_id": "sp1"}},
+        {"eventType": "decision_completed", "data": {"span_id": "sp2"}},
+    ]
+    b = [
+        {"eventType": "decision_completed", "data": {"span_id": "sp1"}},
+        {"eventType": "decision_completed", "data": {"span_id": "sp3"}},
+    ]
     result = _diff_decisions(a, b)
     assert result["shared"] == 1
     assert result["only_in_a"] == 1
@@ -315,12 +335,14 @@ def test_render_diff_text_cost_focus_shows_duration():
     bundle_a = {
         "execution": {"id": "a", "status": "success", "duration_ms": 1000},
         "trace": {"cost": 0.02},
-        "spans": [], "decisions": [],
+        "spans": [],
+        "decisions": [],
     }
     bundle_b = {
         "execution": {"id": "b", "status": "success", "duration_ms": 500},
         "trace": {"cost": 0.01},
-        "spans": [], "decisions": [],
+        "spans": [],
+        "decisions": [],
     }
     s = build_summary(bundle_a, bundle_b)
     out = render_diff_text(s, focus="cost")
@@ -332,8 +354,18 @@ def test_render_diff_text_cost_focus_explains_missing_metrics():
     """When cost/tokens are absent, say so instead of printing nothing."""
     from daita_cli.commands.diff import render_diff_text
 
-    bundle_a = {"execution": {"id": "a", "status": "success"}, "trace": {}, "spans": [], "decisions": []}
-    bundle_b = {"execution": {"id": "b", "status": "success"}, "trace": {}, "spans": [], "decisions": []}
+    bundle_a = {
+        "execution": {"id": "a", "status": "success"},
+        "trace": {},
+        "spans": [],
+        "decisions": [],
+    }
+    bundle_b = {
+        "execution": {"id": "b", "status": "success"},
+        "trace": {},
+        "spans": [],
+        "decisions": [],
+    }
     s = build_summary(bundle_a, bundle_b)
     out = render_diff_text(s, focus="cost")
     assert "not reported" in out.lower()
@@ -347,8 +379,8 @@ def test_build_summary_handles_camelcase_execution_payload():
         "execution": {
             "id": "exec_a",
             "status": "completed",
-            "duration": 5000,       # not duration_ms
-            "cost": 0.05,           # not cost_usd
+            "duration": 5000,  # not duration_ms
+            "cost": 0.05,  # not cost_usd
             "inputTokens": 1000,
             "outputTokens": 200,
             "result": "hello",
@@ -401,14 +433,20 @@ def test_build_summary_flags_status_divergence():
 
 
 def test_build_summary_sorts_spans_by_delta():
-    a = _bundle("a", spans=[
-        _span("1", "fast", None, 0, 100),
-        _span("2", "slow", None, 100, 1000),
-    ])
-    b = _bundle("b", spans=[
-        _span("3", "fast", None, 0, 110),
-        _span("4", "slow", None, 110, 500),  # big delta
-    ])
+    a = _bundle(
+        "a",
+        spans=[
+            _span("1", "fast", None, 0, 100),
+            _span("2", "slow", None, 100, 1000),
+        ],
+    )
+    b = _bundle(
+        "b",
+        spans=[
+            _span("3", "fast", None, 0, 110),
+            _span("4", "slow", None, 110, 500),  # big delta
+        ],
+    )
     s = build_summary(a, b)
     # Biggest mover first
     assert s["spans"][0]["name"] == "slow"
@@ -432,18 +470,30 @@ async def test_compute_diff_fetches_both_bundles(monkeypatch):
     monkeypatch.setenv("DAITA_API_KEY", "test-key")
     with respx.mock(base_url="https://api.daita-tech.io") as mock:
         mock.get("/api/v1/executions/exec_a").mock(
-            return_value=httpx.Response(200, json={
-                "execution_id": "exec_a", "status": "completed",
-                "duration_ms": 1000, "cost_usd": 0.02, "result": "A",
-                "trace_id": "tr_a",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "execution_id": "exec_a",
+                    "status": "completed",
+                    "duration_ms": 1000,
+                    "cost_usd": 0.02,
+                    "result": "A",
+                    "trace_id": "tr_a",
+                },
+            )
         )
         mock.get("/api/v1/executions/exec_b").mock(
-            return_value=httpx.Response(200, json={
-                "execution_id": "exec_b", "status": "completed",
-                "duration_ms": 500, "cost_usd": 0.01, "result": "B",
-                "trace_id": "tr_b",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "execution_id": "exec_b",
+                    "status": "completed",
+                    "duration_ms": 500,
+                    "cost_usd": 0.01,
+                    "result": "B",
+                    "trace_id": "tr_b",
+                },
+            )
         )
         # Trace endpoints succeed with empty data
         mock.get("/api/v1/traces/traces/tr_a/spans").mock(
@@ -486,7 +536,11 @@ async def test_check_api_key_reports_missing(monkeypatch):
     result = await check_api_key()
     assert result.level == Level.ERROR
     assert result.fix is not None
-    assert "sk" in result.fix.lower() or "daita" in result.fix.lower() or "DAITA_API_KEY" in result.fix
+    assert (
+        "sk" in result.fix.lower()
+        or "daita" in result.fix.lower()
+        or "DAITA_API_KEY" in result.fix
+    )
 
 
 @pytest.mark.asyncio
@@ -556,14 +610,16 @@ def test_normalize_rows_projects_camelcase_api_payload():
     from daita_cli.command_helpers import normalize_rows
 
     # Shape mirrors the real API response reported by the user
-    api_items = [{
-        "id": "652941ec-d1f0-4ca6-b510-1c3352885362",
-        "name": "memory_tester",
-        "status": "completed",
-        "startTime": "2026-04-18T16:14:20+00:00",
-        "duration": 81339,
-        "cost": 0.239166,
-    }]
+    api_items = [
+        {
+            "id": "652941ec-d1f0-4ca6-b510-1c3352885362",
+            "name": "memory_tester",
+            "status": "completed",
+            "startTime": "2026-04-18T16:14:20+00:00",
+            "duration": 81339,
+            "cost": 0.239166,
+        }
+    ]
     schema = {
         "trace_id": ("id", "trace_id"),
         "name": ("name",),
@@ -638,6 +694,7 @@ async def test_spinner_is_noop_in_non_tty():
 async def test_spinner_disabled_by_env(monkeypatch):
     monkeypatch.setenv("DAITA_NO_SPINNER", "1")
     from daita_cli.commands._spinner import _enabled
+
     assert _enabled() is False
 
 
@@ -659,8 +716,11 @@ def test_init_creates_skills_folder(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
     fmt = OutputFormatter(mode="json")
-    asyncio.run(_init(project_name="playground", project_type="basic",
-                      force=False, formatter=fmt))
+    asyncio.run(
+        _init(
+            project_name="playground", project_type="basic", force=False, formatter=fmt
+        )
+    )
 
     project = tmp_path / "playground"
     assert (project / "skills").is_dir()
@@ -669,6 +729,7 @@ def test_init_creates_skills_folder(tmp_path, monkeypatch):
 
     # Config should list skills alongside agents/workflows.
     import yaml
+
     with (project / "daita-project.yaml").open() as f:
         cfg = yaml.safe_load(f)
     assert "skills" in cfg and cfg["skills"] == []

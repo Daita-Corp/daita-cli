@@ -77,9 +77,9 @@ def _clean_name(name: str) -> str:
 
 
 _TEMPLATE_CONFIG = {
-    "agent":    {"dir": "agents",    "builder": "_agent_template"},
+    "agent": {"dir": "agents", "builder": "_agent_template"},
     "workflow": {"dir": "workflows", "builder": "_workflow_template"},
-    "skill":    {"dir": "skills",    "builder": "_skill_template"},
+    "skill": {"dir": "skills", "builder": "_skill_template"},
 }
 
 
@@ -95,7 +95,9 @@ def _create_component(template: str, name: str, formatter: OutputFormatter):
     dest_dir = project_root / cfg["dir"]
     dest_file = dest_dir / f"{clean_name}.py"
     if dest_file.exists():
-        raise click.ClickException(f"{template.capitalize()} '{clean_name}' already exists.")
+        raise click.ClickException(
+            f"{template.capitalize()} '{clean_name}' already exists."
+        )
     dest_dir.mkdir(exist_ok=True)
     builder = globals()[cfg["builder"]]
     dest_file.write_text(builder(clean_name, class_name))
@@ -118,7 +120,9 @@ def _create_component(template: str, name: str, formatter: OutputFormatter):
     )
 
 
-def _update_config(project_root: Path, component_key: str, name: str, display_name: str):
+def _update_config(
+    project_root: Path, component_key: str, name: str, display_name: str
+):
     cfg_file = project_root / "daita-project.yaml"
     if cfg_file.exists():
         with open(cfg_file) as f:
@@ -128,12 +132,14 @@ def _update_config(project_root: Path, component_key: str, name: str, display_na
 
     config.setdefault(component_key, [])
     if not any(c["name"] == name for c in config[component_key]):
-        config[component_key].append({
-            "name": name,
-            "display_name": display_name,
-            "type": "standard" if component_key == "agents" else "basic",
-            "created_at": datetime.now().isoformat(),
-        })
+        config[component_key].append(
+            {
+                "name": name,
+                "display_name": display_name,
+                "type": "standard" if component_key == "agents" else "basic",
+                "created_at": datetime.now().isoformat(),
+            }
+        )
         with open(cfg_file, "w") as f:
             yaml.dump(config, f, default_flow_style=False)
 

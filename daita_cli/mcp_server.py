@@ -56,6 +56,7 @@ class ToolDef:
 
 _REGISTRY: dict[str, ToolDef] = {}
 
+
 def tool(
     name: str,
     description: str,
@@ -158,7 +159,11 @@ async def _emit_progress(
     },
 )
 async def list_agents(client: DaitaAPIClient, args: dict) -> list[TextContent]:
-    params = {k: args[k] for k in ("agent_type", "status_filter", "page", "per_page") if k in args}
+    params = {
+        k: args[k]
+        for k in ("agent_type", "status_filter", "page", "per_page")
+        if k in args
+    }
     return _ok(await client.get("/api/v1/agents/agents", params=params or None))
 
 
@@ -181,12 +186,20 @@ async def get_agent(client: DaitaAPIClient, args: dict) -> list[TextContent]:
     input_schema={
         "type": "object",
         "properties": {
-            "limit": {"type": "integer", "default": 20, "description": "Max agents to return"},
+            "limit": {
+                "type": "integer",
+                "default": 20,
+                "description": "Max agents to return",
+            },
         },
     },
 )
 async def list_deployed_agents(client: DaitaAPIClient, args: dict) -> list[TextContent]:
-    return _ok(await client.get("/api/v1/agents/agents/deployed", params={"limit": args.get("limit", 20)}))
+    return _ok(
+        await client.get(
+            "/api/v1/agents/agents/deployed", params={"limit": args.get("limit", 20)}
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +216,11 @@ async def list_deployed_agents(client: DaitaAPIClient, args: dict) -> list[TextC
     },
 )
 async def list_deployments(client: DaitaAPIClient, args: dict) -> list[TextContent]:
-    return _ok(await client.get("/api/v1/deployments/api-key", params={"per_page": args.get("limit", 10)}))
+    return _ok(
+        await client.get(
+            "/api/v1/deployments/api-key", params={"per_page": args.get("limit", 10)}
+        )
+    )
 
 
 @tool(
@@ -218,11 +235,15 @@ async def list_deployments(client: DaitaAPIClient, args: dict) -> list[TextConte
         "required": ["project"],
     },
 )
-async def get_deployment_history(client: DaitaAPIClient, args: dict) -> list[TextContent]:
-    return _ok(await client.get(
-        f"/api/v1/deployments/history/{args['project']}",
-        params={"per_page": args.get("limit", 10)},
-    ))
+async def get_deployment_history(
+    client: DaitaAPIClient, args: dict
+) -> list[TextContent]:
+    return _ok(
+        await client.get(
+            f"/api/v1/deployments/history/{args['project']}",
+            params={"per_page": args.get("limit", 10)},
+        )
+    )
 
 
 @tool(
@@ -254,7 +275,11 @@ async def delete_deployment(client: DaitaAPIClient, args: dict) -> list[TextCont
         "type": "object",
         "properties": {
             "target_name": {"type": "string", "description": "Agent or workflow name"},
-            "target_type": {"type": "string", "enum": ["agent", "workflow"], "default": "agent"},
+            "target_type": {
+                "type": "string",
+                "enum": ["agent", "workflow"],
+                "default": "agent",
+            },
             "data": {"type": "object", "description": "Input data"},
             "task": {"type": "string", "default": "process"},
             "timeout_seconds": {"type": "integer", "default": 300},
@@ -286,7 +311,9 @@ async def run_agent(client: DaitaAPIClient, args: dict) -> list[TextContent]:
 
     async def _on_poll(data: dict, elapsed: float):
         await _emit_progress(
-            progress_token, min(elapsed, timeout), timeout,
+            progress_token,
+            min(elapsed, timeout),
+            timeout,
             f"{data.get('status') or 'polling'}: {execution_id}",
         )
 
@@ -312,7 +339,10 @@ async def run_agent(client: DaitaAPIClient, args: dict) -> list[TextContent]:
         "type": "object",
         "properties": {
             "limit": {"type": "integer", "default": 10},
-            "status": {"type": "string", "enum": ["queued", "running", "completed", "failed", "cancelled"]},
+            "status": {
+                "type": "string",
+                "enum": ["queued", "running", "completed", "failed", "cancelled"],
+            },
             "target_type": {"type": "string", "enum": ["agent", "workflow"]},
         },
     },
@@ -367,21 +397,29 @@ async def get_execution_stats(client: DaitaAPIClient, args: dict) -> list[TextCo
     description=(
         "Re-run an execution with identical inputs (inherits agent/workflow, data, task). "
         "Never mutates the original; returns a new execution with its terminal status. "
-        "Use overrides to patch fields (e.g. {\"task\": \"validate\"}). "
+        'Use overrides to patch fields (e.g. {"task": "validate"}). '
         "Pair with diff_executions to compare outcomes."
     ),
     input_schema={
         "type": "object",
         "properties": {
             "execution_id": {"type": "string"},
-            "deployment_id": {"type": "string", "description": "Replay against a specific deployment version"},
-            "overrides": {"type": "object", "description": "Shallow patch merged onto the replay request"},
+            "deployment_id": {
+                "type": "string",
+                "description": "Replay against a specific deployment version",
+            },
+            "overrides": {
+                "type": "object",
+                "description": "Shallow patch merged onto the replay request",
+            },
             "timeout_seconds": {"type": "integer", "default": 300},
         },
         "required": ["execution_id"],
     },
 )
-async def replay_execution_tool(client: DaitaAPIClient, args: dict) -> list[TextContent]:
+async def replay_execution_tool(
+    client: DaitaAPIClient, args: dict
+) -> list[TextContent]:
     from daita_cli.commands.replay import replay_execution
 
     progress_token = _progress_token()
@@ -389,7 +427,9 @@ async def replay_execution_tool(client: DaitaAPIClient, args: dict) -> list[Text
 
     async def _hook(data: dict, elapsed: float):
         await _emit_progress(
-            progress_token, min(elapsed, timeout), timeout,
+            progress_token,
+            min(elapsed, timeout),
+            timeout,
             f"{data.get('status', 'polling')}: {data.get('execution_id')}",
         )
 
@@ -419,7 +459,11 @@ async def replay_execution_tool(client: DaitaAPIClient, args: dict) -> list[Text
         "properties": {
             "execution_a": {"type": "string"},
             "execution_b": {"type": "string"},
-            "focus": {"type": "string", "enum": ["all", "output", "spans", "decisions", "cost"], "default": "all"},
+            "focus": {
+                "type": "string",
+                "enum": ["all", "output", "spans", "decisions", "cost"],
+                "default": "all",
+            },
         },
         "required": ["execution_a", "execution_b"],
     },
@@ -511,11 +555,17 @@ async def get_trace_decisions(client: DaitaAPIClient, args: dict) -> list[TextCo
     description="Get trace statistics.",
     input_schema={
         "type": "object",
-        "properties": {"period": {"type": "string", "enum": ["24h", "7d", "30d"], "default": "24h"}},
+        "properties": {
+            "period": {"type": "string", "enum": ["24h", "7d", "30d"], "default": "24h"}
+        },
     },
 )
 async def get_trace_stats(client: DaitaAPIClient, args: dict) -> list[TextContent]:
-    return _ok(await client.get("/api/v1/traces/traces/stats", params={"period": args.get("period", "24h")}))
+    return _ok(
+        await client.get(
+            "/api/v1/traces/traces/stats", params={"period": args.get("period", "24h")}
+        )
+    )
 
 
 @tool(
@@ -536,12 +586,14 @@ async def get_trace_timeline(client: DaitaAPIClient, args: dict) -> list[TextCon
 
     raw = await client.get(f"/api/v1/traces/traces/{args['trace_id']}/spans")
     spans = raw if isinstance(raw, list) else raw.get("spans", raw.get("items", []))
-    return _ok({
-        "trace_id": args["trace_id"],
-        "spans": spans,
-        "bottlenecks": compute_bottlenecks(spans),
-        "count": len(spans),
-    })
+    return _ok(
+        {
+            "trace_id": args["trace_id"],
+            "spans": spans,
+            "bottlenecks": compute_bottlenecks(spans),
+            "count": len(spans),
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -581,7 +633,11 @@ async def get_schedule(client: DaitaAPIClient, args: dict) -> list[TextContent]:
     },
 )
 async def pause_schedule(client: DaitaAPIClient, args: dict) -> list[TextContent]:
-    return _ok(await client.patch(f"/api/v1/schedules/{args['schedule_id']}", json={"enabled": False}))
+    return _ok(
+        await client.patch(
+            f"/api/v1/schedules/{args['schedule_id']}", json={"enabled": False}
+        )
+    )
 
 
 @tool(
@@ -594,7 +650,11 @@ async def pause_schedule(client: DaitaAPIClient, args: dict) -> list[TextContent
     },
 )
 async def resume_schedule(client: DaitaAPIClient, args: dict) -> list[TextContent]:
-    return _ok(await client.patch(f"/api/v1/schedules/{args['schedule_id']}", json={"enabled": True}))
+    return _ok(
+        await client.patch(
+            f"/api/v1/schedules/{args['schedule_id']}", json={"enabled": True}
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -612,7 +672,9 @@ async def resume_schedule(client: DaitaAPIClient, args: dict) -> list[TextConten
     },
 )
 async def get_memory_status(client: DaitaAPIClient, args: dict) -> list[TextContent]:
-    return _ok(await client.get("/api/v1/memory/status", params={"project": args["project"]}))
+    return _ok(
+        await client.get("/api/v1/memory/status", params={"project": args["project"]})
+    )
 
 
 @tool(
@@ -630,7 +692,11 @@ async def get_memory_status(client: DaitaAPIClient, args: dict) -> list[TextCont
 )
 async def get_workspace_memory(client: DaitaAPIClient, args: dict) -> list[TextContent]:
     params = {"limit": args.get("limit", 50), "project": args["project"]}
-    return _ok(await client.get(f"/api/v1/memory/workspaces/{args['workspace']}", params=params))
+    return _ok(
+        await client.get(
+            f"/api/v1/memory/workspaces/{args['workspace']}", params=params
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -660,7 +726,11 @@ async def list_secrets(client: DaitaAPIClient, args: dict) -> list[TextContent]:
     },
 )
 async def set_secret(client: DaitaAPIClient, args: dict) -> list[TextContent]:
-    return _ok(await client.post("/api/v1/secrets", json={"key": args["key"], "value": args["value"]}))
+    return _ok(
+        await client.post(
+            "/api/v1/secrets", json={"key": args["key"], "value": args["value"]}
+        )
+    )
 
 
 @tool(
@@ -702,7 +772,11 @@ async def list_webhooks(client: DaitaAPIClient, args: dict) -> list[TextContent]
         "type": "object",
         "properties": {
             "project_name": {"type": "string"},
-            "project_type": {"type": "string", "enum": ["basic", "analysis", "pipeline"], "default": "basic"},
+            "project_type": {
+                "type": "string",
+                "enum": ["basic", "analysis", "pipeline"],
+                "default": "basic",
+            },
         },
     },
     needs_client=False,
@@ -717,10 +791,12 @@ async def init_project(args: dict) -> list[TextContent]:
         force=False,
         formatter=fmt,
     )
-    return _ok({
-        "status": "ok",
-        "message": f"Project '{args.get('project_name', 'daita_project')}' initialized.",
-    })
+    return _ok(
+        {
+            "status": "ok",
+            "message": f"Project '{args.get('project_name', 'daita_project')}' initialized.",
+        }
+    )
 
 
 @tool(
@@ -790,9 +866,21 @@ async def create_skill(args: dict) -> list[TextContent]:
     input_schema={
         "type": "object",
         "properties": {
-            "env": {"type": "boolean", "default": True, "description": "Run environment checks"},
-            "platform": {"type": "boolean", "default": True, "description": "Run platform/API checks"},
-            "timeout": {"type": "number", "default": 5.0, "description": "Per-check timeout in seconds"},
+            "env": {
+                "type": "boolean",
+                "default": True,
+                "description": "Run environment checks",
+            },
+            "platform": {
+                "type": "boolean",
+                "default": True,
+                "description": "Run platform/API checks",
+            },
+            "timeout": {
+                "type": "number",
+                "default": 5.0,
+                "description": "Per-check timeout in seconds",
+            },
         },
     },
     needs_client=False,
@@ -806,11 +894,13 @@ async def doctor_tool(args: dict) -> list[TextContent]:
         per_check_timeout=float(args.get("timeout", 5.0)),
     )
     counts = {lvl.value: n for lvl, n in _count(results).items()}
-    return _ok({
-        "results": [r.as_dict() for r in results],
-        "counts": counts,
-        "has_errors": counts.get(Level.ERROR.value, 0) > 0,
-    })
+    return _ok(
+        {
+            "results": [r.as_dict() for r in results],
+            "counts": counts,
+            "has_errors": counts.get(Level.ERROR.value, 0) > 0,
+        }
+    )
 
 
 @tool(
@@ -822,7 +912,10 @@ async def doctor_tool(args: dict) -> list[TextContent]:
     input_schema={
         "type": "object",
         "properties": {
-            "target": {"type": "string", "description": "Agent/workflow name (optional)"},
+            "target": {
+                "type": "string",
+                "description": "Agent/workflow name (optional)",
+            },
         },
     },
     needs_client=False,

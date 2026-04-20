@@ -8,7 +8,6 @@ import click
 from daita_cli.command_helpers import api_command, normalize_rows
 from daita_cli.commands._timeline import compute_bottlenecks, render_timeline
 
-
 # Display schema for `traces list`. Keys = display columns; values = API field
 # candidates (first present wins). Tolerates snake_case ↔ camelCase drift.
 _TRACE_ROW_SCHEMA = {
@@ -55,7 +54,9 @@ async def list_traces(client, formatter, limit, status, agent_id):
     if agent_id:
         params["agent_id"] = agent_id
     data = await client.get("/api/v1/traces/traces", params=params)
-    items = data if isinstance(data, list) else data.get("traces", data.get("items", []))
+    items = (
+        data if isinstance(data, list) else data.get("traces", data.get("items", []))
+    )
     rows = normalize_rows(items, _TRACE_ROW_SCHEMA)
     formatter.list_items(
         rows,
@@ -90,14 +91,24 @@ def _ascii_fallback_needed() -> bool:
 
 @traces.command("spans")
 @click.argument("trace_id")
-@click.option("--mode", type=click.Choice(["timeline", "tree", "flat"]), default=None,
-              help="Rendering mode. Default: timeline on TTY, flat on pipe.")
+@click.option(
+    "--mode",
+    type=click.Choice(["timeline", "tree", "flat"]),
+    default=None,
+    help="Rendering mode. Default: timeline on TTY, flat on pipe.",
+)
 @click.option("--ascii", "ascii_only", is_flag=True, help="Force ASCII-only rendering.")
 @click.option("--width", type=int, help="Override terminal width.")
-@click.option("--min-duration", type=float, default=0,
-              help="Hide spans shorter than N ms (timeline mode only).")
+@click.option(
+    "--min-duration",
+    type=float,
+    default=0,
+    help="Hide spans shorter than N ms (timeline mode only).",
+)
 @api_command
-async def trace_spans(client, formatter, trace_id, mode, ascii_only, width, min_duration):
+async def trace_spans(
+    client, formatter, trace_id, mode, ascii_only, width, min_duration
+):
     """Show span hierarchy for a trace.
 
     On a TTY, renders an ASCII timeline by default. When piped / non-TTY,
@@ -109,19 +120,26 @@ async def trace_spans(client, formatter, trace_id, mode, ascii_only, width, min_
 
     # JSON mode: structured payload with computed signals
     if formatter.is_json:
-        print(json.dumps({
-            "trace_id": trace_id,
-            "spans": spans,
-            "bottlenecks": compute_bottlenecks(spans),
-            "count": len(spans),
-        }, default=str))
+        print(
+            json.dumps(
+                {
+                    "trace_id": trace_id,
+                    "spans": spans,
+                    "bottlenecks": compute_bottlenecks(spans),
+                    "count": len(spans),
+                },
+                default=str,
+            )
+        )
         return
 
     effective_mode = mode or ("timeline" if sys.stdout.isatty() else "flat")
 
     if effective_mode == "flat":
         rows = normalize_rows(spans, _SPAN_ROW_SCHEMA)
-        formatter.list_items(rows, columns=list(_SPAN_ROW_SCHEMA.keys()), title=f"Spans: {trace_id}")
+        formatter.list_items(
+            rows, columns=list(_SPAN_ROW_SCHEMA.keys()), title=f"Spans: {trace_id}"
+        )
         return
 
     # Timeline or tree — both go through the renderer (tree = width-0 trick
@@ -135,12 +153,14 @@ async def trace_spans(client, formatter, trace_id, mode, ascii_only, width, min_
     term_width = _term_width(width)
 
     click.echo(f"\nTrace: {trace_id}")
-    click.echo(render_timeline(
-        spans,
-        width=term_width,
-        ascii_only=use_ascii,
-        min_duration_ms=min_duration,
-    ))
+    click.echo(
+        render_timeline(
+            spans,
+            width=term_width,
+            ascii_only=use_ascii,
+            min_duration_ms=min_duration,
+        )
+    )
 
 
 def _render_tree(spans: list[dict]) -> None:
@@ -157,8 +177,11 @@ def _render_tree(spans: list[dict]) -> None:
         click.echo(f"{prefix}{connector}{node.name}  ({node.duration_ms:.0f}ms)")
         child_prefix = prefix + ("    " if is_last else "│   ")
         for i, c in enumerate(node.children):
-            _emit(c, prefix=child_prefix if node.depth else "  ",
-                  is_last=(i == len(node.children) - 1))
+            _emit(
+                c,
+                prefix=child_prefix if node.depth else "  ",
+                is_last=(i == len(node.children) - 1),
+            )
 
     for i, r in enumerate(roots):
         _emit(r, is_last=(i == len(roots) - 1))
@@ -170,13 +193,22 @@ def _render_tree(spans: list[dict]) -> None:
 async def trace_decisions(client, formatter, trace_id):
     """Show AI decision events for a trace."""
     data = await client.get(f"/api/v1/traces/traces/{trace_id}/decisions")
-    items = data if isinstance(data, list) else data.get("decisions", data.get("items", []))
+    items = (
+        data if isinstance(data, list) else data.get("decisions", data.get("items", []))
+    )
     rows = normalize_rows(items, _DECISION_ROW_SCHEMA)
-    formatter.list_items(rows, columns=list(_DECISION_ROW_SCHEMA.keys()), title=f"Decisions: {trace_id}")
+    formatter.list_items(
+        rows, columns=list(_DECISION_ROW_SCHEMA.keys()), title=f"Decisions: {trace_id}"
+    )
 
 
 @traces.command("stats")
-@click.option("--period", type=click.Choice(["24h", "7d", "30d"]), default="24h", show_default=True)
+@click.option(
+    "--period",
+    type=click.Choice(["24h", "7d", "30d"]),
+    default="24h",
+    show_default=True,
+)
 @api_command
 async def trace_stats(client, formatter, period):
     """Show trace statistics."""

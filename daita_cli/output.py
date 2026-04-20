@@ -62,7 +62,9 @@ class OutputFormatter:
             for k, v in pairs:
                 print(f"  {k}: {v}")
 
-    def list_items(self, items: list[dict], columns: list[str], title: str = None) -> None:
+    def list_items(
+        self, items: list[dict], columns: list[str], title: str = None
+    ) -> None:
         if self.is_json:
             print(json.dumps({"items": items, "count": len(items)}, default=str))
             return
@@ -90,7 +92,7 @@ class OutputFormatter:
         # Rows
         for item in items:
             row = "  " + "  ".join(
-                str(item.get(col, ""))[:widths[col]].ljust(widths[col])
+                str(item.get(col, ""))[: widths[col]].ljust(widths[col])
                 for col in columns
             )
             print(row)

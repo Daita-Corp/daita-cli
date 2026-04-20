@@ -23,7 +23,11 @@ async def set_secret(client, formatter, key, value):
 async def list_secrets(client, formatter):
     """List stored secret key names (values are never shown)."""
     data = await client.get("/api/v1/secrets")
-    items = data if isinstance(data, list) else data.get("keys", data.get("secrets", data.get("items", [])))
+    items = (
+        data
+        if isinstance(data, list)
+        else data.get("keys", data.get("secrets", data.get("items", [])))
+    )
     # Normalise to dicts if items are plain strings
     if items and isinstance(items[0], str):
         items = [{"key": k} for k in items]
@@ -57,7 +61,7 @@ async def import_secrets(client, formatter, env_file):
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        m = re.match(r'^([A-Za-z][A-Za-z0-9_]*)=(.*)$', line)
+        m = re.match(r"^([A-Za-z][A-Za-z0-9_]*)=(.*)$", line)
         if not m:
             skipped += 1
             continue

@@ -1,10 +1,16 @@
 import click
 from daita_cli.command_helpers import api_command, normalize_rows, pick
 
-
 _EXECUTION_ROW_SCHEMA = {
     "execution_id": ("id", "execution_id", "executionId"),
-    "target": ("name", "target_name", "targetName", "agent_name", "agentName", "workflow_name"),
+    "target": (
+        "name",
+        "target_name",
+        "targetName",
+        "agent_name",
+        "agentName",
+        "workflow_name",
+    ),
     "type": ("type", "target_type", "targetType", "operationType"),
     "status": ("status",),
     "created_at": ("startTime", "created_at", "createdAt", "start_time"),
@@ -27,7 +33,10 @@ def _sort_newest_first(items: list[dict]) -> list[dict]:
 
 @click.group(invoke_without_command=True)
 @click.option("--limit", default=10, show_default=True)
-@click.option("--status", type=click.Choice(["queued", "running", "completed", "failed", "cancelled"]))
+@click.option(
+    "--status",
+    type=click.Choice(["queued", "running", "completed", "failed", "cancelled"]),
+)
 @click.option("--type", "target_type", type=click.Choice(["agent", "workflow"]))
 @click.pass_context
 def executions(ctx, limit, status, target_type):
@@ -39,7 +48,10 @@ def executions(ctx, limit, status, target_type):
 
 @executions.command("list")
 @click.option("--limit", default=10, show_default=True)
-@click.option("--status", type=click.Choice(["queued", "running", "completed", "failed", "cancelled"]))
+@click.option(
+    "--status",
+    type=click.Choice(["queued", "running", "completed", "failed", "cancelled"]),
+)
 @click.option("--type", "target_type", type=click.Choice(["agent", "workflow"]))
 @api_command
 async def list_executions(client, formatter, limit, status, target_type):
@@ -51,7 +63,11 @@ async def list_executions(client, formatter, limit, status, target_type):
     if target_type:
         params["target_type"] = target_type
     data = await client.get("/api/v1/executions/", params=params)
-    items = data if isinstance(data, list) else data.get("executions", data.get("items", []))
+    items = (
+        data
+        if isinstance(data, list)
+        else data.get("executions", data.get("items", []))
+    )
     items = _sort_newest_first(items)[:limit]
     rows = normalize_rows(items, _EXECUTION_ROW_SCHEMA)
     formatter.list_items(
@@ -81,8 +97,17 @@ async def execution_logs(client, formatter, execution_id, follow):
     if follow:
         while True:
             data = await client.get(f"/api/v1/executions/{execution_id}")
-            formatter.item(data, fields=["execution_id", "status", "created_at", "duration_ms", "error"])
-            if data.get("status") in ("completed", "success", "failed", "error", "cancelled"):
+            formatter.item(
+                data,
+                fields=["execution_id", "status", "created_at", "duration_ms", "error"],
+            )
+            if data.get("status") in (
+                "completed",
+                "success",
+                "failed",
+                "error",
+                "cancelled",
+            ):
                 break
             if not formatter.is_json:
                 print("  polling...")
