@@ -21,11 +21,14 @@ async def test_list_tools_returns_all():
 
 
 @pytest.mark.asyncio
-async def test_list_tools_excludes_conversations():
-    """Conversations were removed from MCP surface (CLI-only)."""
+async def test_conversations_fully_removed():
+    """Conversations were dropped from both MCP tools and the CLI command surface."""
     tools = await list_tools()
     names = {t.name for t in tools}
-    assert not any(n.endswith("_conversation") or n == "list_conversations" for n in names)
+    assert not any("conversation" in n.lower() for n in names)
+
+    from daita_cli.main import cli
+    assert "conversations" not in cli.commands
 
 
 @pytest.mark.asyncio
@@ -95,11 +98,11 @@ async def test_run_agent_emits_progress(monkeypatch):
     """run_agent should poll with backoff and complete when status reaches terminal."""
     monkeypatch.setenv("DAITA_API_KEY", "test-key")
     with respx.mock(base_url="https://api.daita-tech.io") as mock:
-        mock.post("/api/v1/autonomous/execute").mock(
+        mock.post("/api/v1/executions/execute").mock(
             return_value=httpx.Response(200, json={"execution_id": "exec-123"})
         )
         # First poll → running, second poll → completed
-        mock.get("/api/v1/autonomous/executions/exec-123").mock(
+        mock.get("/api/v1/executions/exec-123").mock(
             side_effect=[
                 httpx.Response(200, json={"status": "running", "execution_id": "exec-123"}),
                 httpx.Response(200, json={"status": "completed", "execution_id": "exec-123", "result": "ok"}),
@@ -119,10 +122,10 @@ async def test_run_agent_timeout_raises(monkeypatch):
     """run_agent raises TimeoutError if execution doesn't reach a terminal state."""
     monkeypatch.setenv("DAITA_API_KEY", "test-key")
     with respx.mock(base_url="https://api.daita-tech.io") as mock:
-        mock.post("/api/v1/autonomous/execute").mock(
+        mock.post("/api/v1/executions/execute").mock(
             return_value=httpx.Response(200, json={"execution_id": "exec-456"})
         )
-        mock.get("/api/v1/autonomous/executions/exec-456").mock(
+        mock.get("/api/v1/executions/exec-456").mock(
             return_value=httpx.Response(200, json={"status": "running", "execution_id": "exec-456"})
         )
         with pytest.raises(TimeoutError, match="exec-456"):

@@ -1,5 +1,23 @@
 import click
-from daita_cli.command_helpers import api_command
+from daita_cli.command_helpers import api_command, normalize_rows
+
+
+_AGENT_ROW_SCHEMA = {
+    "id": ("id", "agent_id", "agentId"),
+    "name": ("name", "display_name", "displayName"),
+    "type": ("type", "agent_type", "agentType"),
+    "status": ("status",),
+    "created_at": ("created_at", "createdAt", "startTime"),
+}
+
+_DEPLOYED_AGENT_ROW_SCHEMA = {
+    "id": ("id", "agent_id", "agentId"),
+    "name": ("name", "display_name", "displayName"),
+    "type": ("type", "agent_type", "agentType"),
+    "status": ("status",),
+    "deployed_at": ("deployed_at", "deployedAt", "created_at", "createdAt"),
+    "version": ("version", "deployment_version"),
+}
 
 
 @click.group()
@@ -23,11 +41,8 @@ async def list_agents(client, formatter, agent_type, status, page, per_page):
         params["status_filter"] = status
     data = await client.get("/api/v1/agents/agents", params=params)
     items = data if isinstance(data, list) else data.get("agents", data.get("items", []))
-    formatter.list_items(
-        items,
-        columns=["id", "name", "type", "status", "created_at"],
-        title="Agents",
-    )
+    rows = normalize_rows(items, _AGENT_ROW_SCHEMA)
+    formatter.list_items(rows, columns=list(_AGENT_ROW_SCHEMA.keys()), title="Agents")
 
 
 @agents.command("show")
@@ -45,8 +60,5 @@ async def deployed_agents(client, formatter):
     """List deployed agents with configuration."""
     data = await client.get("/api/v1/agents/agents/deployed")
     items = data if isinstance(data, list) else data.get("agents", data.get("items", []))
-    formatter.list_items(
-        items,
-        columns=["id", "name", "type", "status", "deployed_at"],
-        title="Deployed Agents",
-    )
+    rows = normalize_rows(items, _DEPLOYED_AGENT_ROW_SCHEMA)
+    formatter.list_items(rows, columns=list(_DEPLOYED_AGENT_ROW_SCHEMA.keys()), title="Deployed Agents")

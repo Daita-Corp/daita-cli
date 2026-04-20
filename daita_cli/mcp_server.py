@@ -56,9 +56,6 @@ class ToolDef:
 
 _REGISTRY: dict[str, ToolDef] = {}
 
-_TERMINAL_STATUSES = {"completed", "success", "failed", "error", "cancelled"}
-
-
 def tool(
     name: str,
     description: str,
@@ -266,6 +263,8 @@ async def delete_deployment(client: DaitaAPIClient, args: dict) -> list[TextCont
     },
 )
 async def run_agent(client: DaitaAPIClient, args: dict) -> list[TextContent]:
+    from daita_cli.commands._polling import poll_until_terminal
+
     timeout = float(args.get("timeout_seconds", 300))
     request = {
         "data": args.get("data", {}),
@@ -279,42 +278,31 @@ async def run_agent(client: DaitaAPIClient, args: dict) -> list[TextContent]:
     else:
         request["workflow_name"] = args["target_name"]
 
-    result = await client.post("/api/v1/autonomous/execute", json=request)
+    result = await client.post("/api/v1/executions/execute", json=request)
     execution_id = result["execution_id"]
 
     progress_token = _progress_token()
     await _emit_progress(progress_token, 0.0, timeout, f"queued: {execution_id}")
 
-    # Adaptive backoff: short polls early (snappy for fast runs), longer as
-    # we settle into a long-running execution.
-    delay = 1.0
-    max_delay = 5.0
-    elapsed = 0.0
-    loop = asyncio.get_event_loop()
-    start = loop.time()
-
-    while elapsed < timeout:
-        await asyncio.sleep(min(delay, timeout - elapsed))
-        elapsed = loop.time() - start
-        status_data = await client.get(f"/api/v1/autonomous/executions/{execution_id}")
-        status = status_data.get("status", "")
-
+    async def _on_poll(data: dict, elapsed: float):
         await _emit_progress(
-            progress_token,
-            min(elapsed, timeout),
-            timeout,
-            f"{status or 'polling'}: {execution_id}",
+            progress_token, min(elapsed, timeout), timeout,
+            f"{data.get('status') or 'polling'}: {execution_id}",
         )
 
-        if status in _TERMINAL_STATUSES:
-            return _ok(status_data)
-
-        delay = min(delay * 1.5, max_delay)
-
-    raise TimeoutError(
-        f"Execution did not complete within {timeout:.0f}s. "
-        f"execution_id={execution_id} — inspect with get_execution."
-    )
+    try:
+        status_data = await poll_until_terminal(
+            client,
+            f"/api/v1/executions/{execution_id}",
+            timeout=timeout,
+            on_poll=_on_poll,
+        )
+    except TimeoutError:
+        raise TimeoutError(
+            f"Execution did not complete within {timeout:.0f}s. "
+            f"execution_id={execution_id} — inspect with get_execution."
+        )
+    return _ok(status_data)
 
 
 @tool(
@@ -330,8 +318,13 @@ async def run_agent(client: DaitaAPIClient, args: dict) -> list[TextContent]:
     },
 )
 async def list_executions(client: DaitaAPIClient, args: dict) -> list[TextContent]:
-    params = {k: args[k] for k in ("limit", "status", "target_type") if k in args}
-    return _ok(await client.get("/api/v1/autonomous/executions", params=params or None))
+    # Backend query param is `status_filter` (not `status`).
+    params: dict = {"limit": args.get("limit", 10), "offset": 0}
+    if "status" in args:
+        params["status_filter"] = args["status"]
+    if "target_type" in args:
+        params["target_type"] = args["target_type"]
+    return _ok(await client.get("/api/v1/executions/", params=params))
 
 
 @tool(
@@ -344,7 +337,7 @@ async def list_executions(client: DaitaAPIClient, args: dict) -> list[TextConten
     },
 )
 async def get_execution(client: DaitaAPIClient, args: dict) -> list[TextContent]:
-    return _ok(await client.get(f"/api/v1/autonomous/executions/{args['execution_id']}"))
+    return _ok(await client.get(f"/api/v1/executions/{args['execution_id']}"))
 
 
 @tool(
@@ -357,7 +350,7 @@ async def get_execution(client: DaitaAPIClient, args: dict) -> list[TextContent]
     },
 )
 async def cancel_execution(client: DaitaAPIClient, args: dict) -> list[TextContent]:
-    return _ok(await client.delete(f"/api/v1/autonomous/executions/{args['execution_id']}"))
+    return _ok(await client.delete(f"/api/v1/executions/{args['execution_id']}"))
 
 
 @tool(
@@ -367,6 +360,88 @@ async def cancel_execution(client: DaitaAPIClient, args: dict) -> list[TextConte
 )
 async def get_execution_stats(client: DaitaAPIClient, args: dict) -> list[TextContent]:
     return _ok(await client.get("/api/v1/autonomous/stats"))
+
+
+@tool(
+    name="replay_execution",
+    description=(
+        "Re-run an execution with identical inputs (inherits agent/workflow, data, task). "
+        "Never mutates the original; returns a new execution with its terminal status. "
+        "Use overrides to patch fields (e.g. {\"task\": \"validate\"}). "
+        "Pair with diff_executions to compare outcomes."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "execution_id": {"type": "string"},
+            "deployment_id": {"type": "string", "description": "Replay against a specific deployment version"},
+            "overrides": {"type": "object", "description": "Shallow patch merged onto the replay request"},
+            "timeout_seconds": {"type": "integer", "default": 300},
+        },
+        "required": ["execution_id"],
+    },
+)
+async def replay_execution_tool(client: DaitaAPIClient, args: dict) -> list[TextContent]:
+    from daita_cli.commands.replay import replay_execution
+
+    progress_token = _progress_token()
+    timeout = float(args.get("timeout_seconds", 300))
+
+    async def _hook(data: dict, elapsed: float):
+        await _emit_progress(
+            progress_token, min(elapsed, timeout), timeout,
+            f"{data.get('status', 'polling')}: {data.get('execution_id')}",
+        )
+
+    overrides = args.get("overrides")
+    overrides_json = json.dumps(overrides) if overrides else None
+
+    final = await replay_execution(
+        client,
+        args["execution_id"],
+        overrides=overrides_json,
+        deployment_id=args.get("deployment_id"),
+        timeout=int(timeout),
+        on_poll=_hook,
+    )
+    return _ok(final)
+
+
+@tool(
+    name="diff_executions",
+    description=(
+        "Compare two executions. Returns structured deltas across status, duration, cost, "
+        "tokens, output size, span timings, and decision counts. "
+        "Use focus to narrow scope: all | output | spans | decisions | cost."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "execution_a": {"type": "string"},
+            "execution_b": {"type": "string"},
+            "focus": {"type": "string", "enum": ["all", "output", "spans", "decisions", "cost"], "default": "all"},
+        },
+        "required": ["execution_a", "execution_b"],
+    },
+)
+async def diff_executions_tool(client: DaitaAPIClient, args: dict) -> list[TextContent]:
+    from daita_cli.commands.diff import compute_diff
+
+    summary = await compute_diff(client, args["execution_a"], args["execution_b"])
+    focus = args.get("focus", "all")
+    if focus != "all":
+        # Trim the summary down to the requested focus for cheaper LLM consumption
+        keep = {"a", "b", "status"}
+        if focus == "output":
+            keep |= {"output"}
+        elif focus == "spans":
+            keep |= {"spans"}
+        elif focus == "decisions":
+            keep |= {"decisions"}
+        elif focus == "cost":
+            keep |= {"duration_ms", "cost_usd", "tokens_in", "tokens_out"}
+        summary = {k: v for k, v in summary.items() if k in keep}
+    return _ok(summary)
 
 
 # ---------------------------------------------------------------------------
@@ -441,6 +516,32 @@ async def get_trace_decisions(client: DaitaAPIClient, args: dict) -> list[TextCo
 )
 async def get_trace_stats(client: DaitaAPIClient, args: dict) -> list[TextContent]:
     return _ok(await client.get("/api/v1/traces/traces/stats", params={"period": args.get("period", "24h")}))
+
+
+@tool(
+    name="get_trace_timeline",
+    description=(
+        "Return a structured span timeline for a trace, including computed bottlenecks "
+        "(spans that consumed >30%% of total duration). Preferred over get_trace_spans "
+        "when debugging performance — returns pre-computed signals an LLM can act on."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {"trace_id": {"type": "string"}},
+        "required": ["trace_id"],
+    },
+)
+async def get_trace_timeline(client: DaitaAPIClient, args: dict) -> list[TextContent]:
+    from daita_cli.commands._timeline import compute_bottlenecks
+
+    raw = await client.get(f"/api/v1/traces/traces/{args['trace_id']}/spans")
+    spans = raw if isinstance(raw, list) else raw.get("spans", raw.get("items", []))
+    return _ok({
+        "trace_id": args["trace_id"],
+        "spans": spans,
+        "bottlenecks": compute_bottlenecks(spans),
+        "count": len(spans),
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -656,6 +757,39 @@ async def create_workflow(args: dict) -> list[TextContent]:
     fmt = OutputFormatter(mode="json")
     _create_component(template="workflow", name=args["name"], formatter=fmt)
     return _ok({"status": "ok", "message": f"Workflow '{args['name']}' created."})
+
+
+@tool(
+    name="doctor",
+    description=(
+        "Run daita-cli health checks (environment + platform connectivity). "
+        "Returns structured results with per-check IDs and copy-pasteable fixes. "
+        "Always the right first step when something isn't working."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "env": {"type": "boolean", "default": True, "description": "Run environment checks"},
+            "platform": {"type": "boolean", "default": True, "description": "Run platform/API checks"},
+            "timeout": {"type": "number", "default": 5.0, "description": "Per-check timeout in seconds"},
+        },
+    },
+    needs_client=False,
+)
+async def doctor_tool(args: dict) -> list[TextContent]:
+    from daita_cli.commands.doctor import run_doctor, _count, Level
+
+    results = await run_doctor(
+        env=args.get("env", True),
+        platform=args.get("platform", True),
+        per_check_timeout=float(args.get("timeout", 5.0)),
+    )
+    counts = {lvl.value: n for lvl, n in _count(results).items()}
+    return _ok({
+        "results": [r.as_dict() for r in results],
+        "counts": counts,
+        "has_errors": counts.get(Level.ERROR.value, 0) > 0,
+    })
 
 
 @tool(

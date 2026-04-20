@@ -11,8 +11,10 @@ Usage:
     daita memory status
     daita secrets list
     daita webhooks list
-    daita conversations list
     daita run <agent>
+    daita replay <execution_id>
+    daita diff <exec_a> <exec_b>
+    daita doctor
     daita status
     daita logs
     daita push               # requires daita-agents
@@ -36,7 +38,6 @@ from daita_cli.commands.operations import operations
 from daita_cli.commands.memory import memory
 from daita_cli.commands.secrets import secrets
 from daita_cli.commands.webhooks import webhooks
-from daita_cli.commands.conversations import conversations
 from daita_cli.commands.run import run_command
 from daita_cli.commands.status import status_command
 from daita_cli.commands.logs import logs_command
@@ -44,6 +45,9 @@ from daita_cli.commands.push import push_command
 from daita_cli.commands.init import init_command
 from daita_cli.commands.create import create_group
 from daita_cli.commands.test import test_command
+from daita_cli.commands.replay import replay_command
+from daita_cli.commands.diff import diff_command
+from daita_cli.commands.doctor import doctor_command
 
 
 @click.group()
@@ -70,8 +74,10 @@ cli.add_command(operations)
 cli.add_command(memory)
 cli.add_command(secrets)
 cli.add_command(webhooks)
-cli.add_command(conversations)
 cli.add_command(run_command)
+cli.add_command(replay_command)
+cli.add_command(diff_command)
+cli.add_command(doctor_command)
 cli.add_command(status_command)
 cli.add_command(logs_command)
 
