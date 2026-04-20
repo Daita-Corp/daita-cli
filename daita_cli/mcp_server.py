@@ -760,6 +760,27 @@ async def create_workflow(args: dict) -> list[TextContent]:
 
 
 @tool(
+    name="create_skill",
+    description=(
+        "Add a new skill to the current project from template. Skills bundle "
+        "instructions + tools that attach to any agent via agent.add_skill()."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+        "required": ["name"],
+    },
+    needs_client=False,
+)
+async def create_skill(args: dict) -> list[TextContent]:
+    from daita_cli.commands.create import _create_component
+
+    fmt = OutputFormatter(mode="json")
+    _create_component(template="skill", name=args["name"], formatter=fmt)
+    return _ok({"status": "ok", "message": f"Skill '{args['name']}' created."})
+
+
+@tool(
     name="doctor",
     description=(
         "Run daita-cli health checks (environment + platform connectivity). "

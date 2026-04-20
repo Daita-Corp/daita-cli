@@ -60,9 +60,10 @@ daita doctor
 
 | Command | Description |
 |---------|-------------|
-| `daita init [name]` | Scaffold a new Daita project |
+| `daita init [name]` | Scaffold a new Daita project (agents/, workflows/, skills/) |
 | `daita create agent <name>` | Add a new agent from template |
 | `daita create workflow <name>` | Add a new workflow from template |
+| `daita create skill <name>` | Add a new skill (instructions + tools) from template |
 | `daita test [target]` | Run agents/workflows locally |
 | `daita push` | Deploy the current project to the cloud |
 | `daita status` | Show project and deployment status |
@@ -135,7 +136,7 @@ Output defaults to JSON automatically when stdout is not a TTY (e.g. in scripts 
 
 ## MCP Server
 
-`daita-cli` ships a full [Model Context Protocol](https://modelcontextprotocol.io) server with 34 tools, letting coding agents (Claude Code, Codex, Cursor, etc.) interact with your Daita platform directly. Tools emit `isError` on failure, stream MCP progress notifications during long runs, and return structured JSON that coding agents can act on without parsing terminal output.
+`daita-cli` ships a full [Model Context Protocol](https://modelcontextprotocol.io) server with 35 tools, letting coding agents (Claude Code, Codex, Cursor, etc.) interact with your Daita platform directly. Tools stream MCP progress notifications during long runs and return structured JSON that coding agents can act on without parsing terminal output.
 
 ### Start the server
 
@@ -174,7 +175,7 @@ Add to your project's `.mcp.json`:
 | Secrets | `list_secrets`, `set_secret`, `delete_secret` |
 | Webhooks | `list_webhooks` |
 | Diagnostics | `doctor` |
-| Local dev | `init_project`, `create_agent`, `create_workflow`, `test_agent` |
+| Local dev | `init_project`, `create_agent`, `create_workflow`, `create_skill`, `test_agent` |
 
 ---
 

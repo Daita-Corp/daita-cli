@@ -5,7 +5,7 @@ No daita-agents dependency required.
 
 import asyncio
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import click
@@ -71,14 +71,21 @@ async def _init(project_name, project_type, force, formatter):
         click.echo(f"   3. pip install -r requirements.txt")
         click.echo(f"   4. daita test              # Test locally (free)")
         click.echo(f"   5. daita push              # Deploy to cloud (requires API key)")
+        click.echo(f"")
+        click.echo(f"Project layout:")
+        click.echo(f"   agents/     one file per agent (a starter is included)")
+        click.echo(f"   workflows/  multi-agent pipelines")
+        click.echo(f"   skills/     reusable instructions + tools attachable to any agent")
+        click.echo(f"   tests/      pytest suite")
+        click.echo(f"   data/       local test fixtures")
     else:
         formatter.success({"project": project_name, "location": str(project_dir)})
 
 
 def _create_structure(project_dir: Path):
-    for d in [".daita", "agents", "workflows", "data", "tests"]:
+    for d in [".daita", "agents", "workflows", "skills", "data", "tests"]:
         (project_dir / d).mkdir(exist_ok=True)
-    for d in ["agents", "workflows", "tests"]:
+    for d in ["agents", "workflows", "skills", "tests"]:
         init = project_dir / d / "__init__.py"
         init.write_text('"""Daita project components."""\n')
     (project_dir / "data" / ".gitkeep").write_text("")
@@ -95,9 +102,10 @@ def _create_config(project_dir: Path, project_name: str):
         "name": project_name,
         "version": "1.0.0",
         "description": f"A Daita AI agent project",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "agents": [],
         "workflows": [],
+        "skills": [],
     }
     with open(project_dir / "daita-project.yaml", "w") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
@@ -180,8 +188,58 @@ if __name__ == "__main__":
     asyncio.run(main())
 '''
 
+    skill_code = '''\
+"""
+Reporting Skill - Example
+
+Skills bundle domain-specific instructions with a small set of related tools.
+Attach to any agent via `agent.add_skill(report_skill)` to give it consistent
+reporting behavior without polluting the base system prompt.
+"""
+from daita.skills import Skill
+from daita.core.tools import tool
+
+
+@tool
+async def format_report(title: str, rows: list[dict]) -> str:
+    """Format a list of row dicts into a clean Markdown table."""
+    if not rows:
+        return f"# {title}\\n\\n_No data._"
+    headers = list(rows[0].keys())
+    lines = [f"# {title}", ""]
+    lines.append("| " + " | ".join(headers) + " |")
+    lines.append("| " + " | ".join("---" for _ in headers) + " |")
+    for row in rows:
+        lines.append("| " + " | ".join(str(row.get(h, "")) for h in headers) + " |")
+    return "\\n".join(lines)
+
+
+report_skill = Skill(
+    name="reporting",
+    description="Format data into consistent, well-structured reports.",
+    instructions=(
+        "When producing reports, always use clear headers and Markdown tables. "
+        "Prefer concise summaries over verbose prose. Cite row counts explicitly."
+    ),
+    tools=[format_report],
+)
+
+
+if __name__ == "__main__":
+    # To use this skill in an agent, update agents/my_agent.py:
+    #
+    #     from skills.example_skill import report_skill
+    #
+    #     def create_agent():
+    #         agent = Agent(name="...", model="...", prompt="...")
+    #         agent.add_skill(report_skill)
+    #         return agent
+    print(f"Skill: {report_skill.name} — {report_skill.description}")
+'''
+
     (project_dir / "agents" / "my_agent.py").write_text(agent_code)
     (project_dir / "workflows" / "my_workflow.py").write_text(workflow_code)
+    (project_dir / "skills" / "example_skill.py").write_text(skill_code)
 
 
 def _create_support_files(project_dir: Path, project_name: str):

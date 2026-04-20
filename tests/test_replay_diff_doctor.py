@@ -650,6 +650,59 @@ async def test_spinner_disabled_in_json_formatter():
     assert _enabled(fmt) is False
 
 
+def test_init_creates_skills_folder(tmp_path, monkeypatch):
+    """Regression: `daita init` must scaffold a skills/ folder with a starter
+    template so the newly-added skills framework has a home."""
+    import asyncio
+    from daita_cli.commands.init import _init
+    from daita_cli.output import OutputFormatter
+
+    monkeypatch.chdir(tmp_path)
+    fmt = OutputFormatter(mode="json")
+    asyncio.run(_init(project_name="playground", project_type="basic",
+                      force=False, formatter=fmt))
+
+    project = tmp_path / "playground"
+    assert (project / "skills").is_dir()
+    assert (project / "skills" / "__init__.py").exists()
+    assert (project / "skills" / "example_skill.py").exists()
+
+    # Config should list skills alongside agents/workflows.
+    import yaml
+    with (project / "daita-project.yaml").open() as f:
+        cfg = yaml.safe_load(f)
+    assert "skills" in cfg and cfg["skills"] == []
+
+    # Starter skill must import from daita.skills so it actually runs.
+    starter = (project / "skills" / "example_skill.py").read_text()
+    assert "from daita.skills import Skill" in starter
+    assert "report_skill = Skill(" in starter
+
+
+def test_create_skill_template_generates_valid_python(tmp_path):
+    """`daita create skill <name>` must produce a syntactically valid file
+    that imports from daita.skills."""
+    from daita_cli.commands.create import _skill_template
+
+    code = _skill_template("my_custom_skill", "MyCustomSkill")
+    # Should import from the framework
+    assert "from daita.skills import Skill" in code
+    # Should declare an instance named after the skill
+    assert "my_custom_skill_skill = Skill(" in code
+    # Must parse as valid Python
+    compile(code, "<skill>", "exec")
+
+
+@pytest.mark.asyncio
+async def test_create_skill_mcp_tool_registered():
+    from daita_cli.mcp_server import _REGISTRY
+
+    assert "create_skill" in _REGISTRY
+    assert _REGISTRY["create_skill"].needs_client is False
+    # No framework guard — just writes template files (same as agent/workflow).
+    assert _REGISTRY["create_skill"].needs_framework is False
+
+
 @pytest.mark.asyncio
 async def test_doctor_mcp_tool_runs_without_client(monkeypatch):
     """The doctor MCP tool is marked needs_client=False and should run without an API key."""
