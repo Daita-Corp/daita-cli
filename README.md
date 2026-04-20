@@ -160,7 +160,6 @@ Add to your project's `.mcp.json`:
 | Memory | `get_memory_status`, `get_workspace_memory` |
 | Secrets | `list_secrets`, `set_secret`, `delete_secret` |
 | Webhooks | `list_webhooks` |
-| Conversations | `list_conversations`, `get_conversation`, `create_conversation`, `delete_conversation` |
 | Local dev | `init_project`, `create_agent`, `create_workflow`, `test_agent` |
 
 ---
