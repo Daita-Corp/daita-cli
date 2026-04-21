@@ -12,11 +12,37 @@ Usage:
 import asyncio
 import functools
 import sys
+from typing import Any
 
 import click
 
 from daita_cli.api_client import AuthError, NotFoundError, APIError, DaitaAPIClient
 from daita_cli.output import OutputFormatter
+
+
+def pick(item: dict, *keys: str, default: Any = "") -> Any:
+    """Return the first present, non-empty value among `keys`.
+
+    Tolerates API drift between snake_case and camelCase field names.
+    Example:
+        pick(trace, "id", "trace_id")           # -> "652941..."
+        pick(trace, "startTime", "started_at")  # -> "2026-04-18T..."
+    """
+    for k in keys:
+        v = item.get(k)
+        if v not in (None, ""):
+            return v
+    return default
+
+
+def normalize_rows(items: list[dict], schema: dict[str, tuple[str, ...]]) -> list[dict]:
+    """Project raw API items onto display-friendly rows.
+
+    `schema` maps output column -> candidate source keys (first hit wins).
+    """
+    return [
+        {out: pick(item, *sources) for out, sources in schema.items()} for item in items
+    ]
 
 
 def api_command(f):
@@ -26,6 +52,7 @@ def api_command(f):
     2. Injects `client` (DaitaAPIClient) and `formatter` (OutputFormatter) as first two args
     3. Maps exceptions to exit codes: 0=ok, 1=error, 2=auth, 130=interrupt
     """
+
     @functools.wraps(f)
     @click.pass_context
     def wrapper(ctx, *args, **kwargs):

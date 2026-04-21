@@ -74,7 +74,9 @@ async def _test_single(project_root, target, test_data, formatter):
     elif workflow_file.exists():
         await _test_workflow(workflow_file, target, test_data, formatter)
     else:
-        raise click.ClickException(f"Target '{target}' not found in agents/ or workflows/.")
+        raise click.ClickException(
+            f"Target '{target}' not found in agents/ or workflows/."
+        )
 
 
 async def _test_all(project_root, test_data, formatter):
@@ -85,7 +87,9 @@ async def _test_all(project_root, test_data, formatter):
     for a in agents:
         await _test_agent(project_root / "agents" / f"{a}.py", a, test_data, formatter)
     for w in workflows:
-        await _test_workflow(project_root / "workflows" / f"{w}.py", w, test_data, formatter)
+        await _test_workflow(
+            project_root / "workflows" / f"{w}.py", w, test_data, formatter
+        )
 
 
 async def _test_agent(agent_file, name, test_data, formatter):
@@ -142,10 +146,12 @@ def _load_factory(file_path: Path, fn_name: str):
         raise ImportError(f"Failed to load {file_path.name}: {e}")
 
     if not hasattr(module, fn_name):
-        available = [n for n in dir(module) if callable(getattr(module, n)) and not n.startswith("_")]
-        raise ValueError(
-            f"No {fn_name}() in {file_path.name}. Available: {available}"
-        )
+        available = [
+            n
+            for n in dir(module)
+            if callable(getattr(module, n)) and not n.startswith("_")
+        ]
+        raise ValueError(f"No {fn_name}() in {file_path.name}. Available: {available}")
     return getattr(module, fn_name)
 
 

@@ -14,10 +14,21 @@ def deployments():
 async def list_deployments(client, formatter, limit):
     """List deployments."""
     data = await client.get("/api/v1/deployments/api-key", params={"per_page": limit})
-    items = data if isinstance(data, list) else data.get("deployments", data.get("items", []))
+    items = (
+        data
+        if isinstance(data, list)
+        else data.get("deployments", data.get("items", []))
+    )
     formatter.list_items(
         items,
-        columns=["deployment_id", "project_name", "environment", "status", "version", "deployed_at"],
+        columns=[
+            "deployment_id",
+            "project_name",
+            "environment",
+            "status",
+            "version",
+            "deployed_at",
+        ],
         title="Deployments",
     )
 
@@ -53,7 +64,11 @@ async def deployment_history(client, formatter, project_name, limit):
         f"/api/v1/deployments/history/{project_name}",
         params={"per_page": limit},
     )
-    items = data if isinstance(data, list) else data.get("deployments", data.get("items", []))
+    items = (
+        data
+        if isinstance(data, list)
+        else data.get("deployments", data.get("items", []))
+    )
     formatter.list_items(
         items,
         columns=["deployment_id", "environment", "status", "version", "deployed_at"],

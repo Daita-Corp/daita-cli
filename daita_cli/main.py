@@ -11,8 +11,10 @@ Usage:
     daita memory status
     daita secrets list
     daita webhooks list
-    daita conversations list
     daita run <agent>
+    daita replay <execution_id>
+    daita diff <exec_a> <exec_b>
+    daita doctor
     daita status
     daita logs
     daita push               # requires daita-agents
@@ -36,7 +38,6 @@ from daita_cli.commands.operations import operations
 from daita_cli.commands.memory import memory
 from daita_cli.commands.secrets import secrets
 from daita_cli.commands.webhooks import webhooks
-from daita_cli.commands.conversations import conversations
 from daita_cli.commands.run import run_command
 from daita_cli.commands.status import status_command
 from daita_cli.commands.logs import logs_command
@@ -44,11 +45,16 @@ from daita_cli.commands.push import push_command
 from daita_cli.commands.init import init_command
 from daita_cli.commands.create import create_group
 from daita_cli.commands.test import test_command
+from daita_cli.commands.replay import replay_command
+from daita_cli.commands.diff import diff_command
+from daita_cli.commands.doctor import doctor_command
 
 
 @click.group()
 @click.version_option(version=__version__, prog_name="daita")
-@click.option("--output", "-o", type=click.Choice(["json", "text", "table"]), help="Output format")
+@click.option(
+    "--output", "-o", type=click.Choice(["json", "text", "table"]), help="Output format"
+)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--quiet", "-q", is_flag=True, help="Suppress non-error output")
 @click.pass_context
@@ -70,8 +76,10 @@ cli.add_command(operations)
 cli.add_command(memory)
 cli.add_command(secrets)
 cli.add_command(webhooks)
-cli.add_command(conversations)
 cli.add_command(run_command)
+cli.add_command(replay_command)
+cli.add_command(diff_command)
+cli.add_command(doctor_command)
 cli.add_command(status_command)
 cli.add_command(logs_command)
 
@@ -81,6 +89,7 @@ cli.add_command(init_command)
 cli.add_command(create_group)
 cli.add_command(test_command)
 
+
 # Backward compat hidden alias: `daita execution-logs <id>` → `daita executions logs <id>`
 @cli.command("execution-logs", hidden=True)
 @click.argument("execution_id")
@@ -89,6 +98,7 @@ cli.add_command(test_command)
 def _execution_logs_alias(ctx, execution_id, follow):
     """Deprecated: use `daita executions logs <id>`."""
     from daita_cli.commands.executions import execution_logs
+
     ctx.invoke(execution_logs, execution_id=execution_id, follow=follow)
 
 
@@ -97,6 +107,7 @@ def mcp_server_command():
     """Start the MCP server for coding agent integrations."""
     import asyncio
     from daita_cli.mcp_server import run_server
+
     asyncio.run(run_server())
 
 

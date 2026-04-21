@@ -77,6 +77,8 @@ async def test_post_sends_json(client):
             return_value=httpx.Response(200, json={"status": "ok"})
         )
         async with client:
-            result = await client.post("/api/v1/secrets", json={"key": "K", "value": "V"})
+            result = await client.post(
+                "/api/v1/secrets", json={"key": "K", "value": "V"}
+            )
     assert result == {"status": "ok"}
     assert route.called

@@ -18,7 +18,9 @@ def operations():
 
 @operations.command("list")
 @click.option("--limit", default=20, show_default=True)
-@click.option("--status", "status_filter", type=click.Choice(["success", "error", "timeout"]))
+@click.option(
+    "--status", "status_filter", type=click.Choice(["success", "error", "timeout"])
+)
 @click.option("--agent-id", help="Filter by agent ID")
 @api_command
 async def list_operations(client, formatter, limit, status_filter, agent_id):
@@ -29,7 +31,11 @@ async def list_operations(client, formatter, limit, status_filter, agent_id):
     if agent_id:
         params["agent_id"] = agent_id
     data = await client.get("/api/v1/operations", params=params)
-    items = data if isinstance(data, list) else data.get("operations", data.get("items", []))
+    items = (
+        data
+        if isinstance(data, list)
+        else data.get("operations", data.get("items", []))
+    )
     formatter.list_items(
         items,
         columns=["operation_id", "agent_name", "status", "timestamp", "latency_ms"],
@@ -38,7 +44,12 @@ async def list_operations(client, formatter, limit, status_filter, agent_id):
 
 
 @operations.command("stats")
-@click.option("--period", type=click.Choice(["24h", "7d", "30d"]), default="24h", show_default=True)
+@click.option(
+    "--period",
+    type=click.Choice(["24h", "7d", "30d"]),
+    default="24h",
+    show_default=True,
+)
 @api_command
 async def operation_stats(client, formatter, period):
     """Show operation statistics. Requires dashboard (JWT) auth — not available with API key only."""

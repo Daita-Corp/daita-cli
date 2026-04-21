@@ -31,9 +31,16 @@ async def show_memory(client, formatter, workspace, full, limit, project):
     data = await client.get(f"/api/v1/memory/workspaces/{workspace}", params=params)
     if formatter.is_json:
         import json, sys
+
         print(json.dumps(data, default=str))
     else:
-        items = data if isinstance(data, list) else data.get("items", data.get("memories", [data] if isinstance(data, dict) else []))
+        items = (
+            data
+            if isinstance(data, list)
+            else data.get(
+                "items", data.get("memories", [data] if isinstance(data, dict) else [])
+            )
+        )
         formatter.list_items(
             items,
             columns=["id", "key", "value", "created_at"],

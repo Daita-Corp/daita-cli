@@ -43,6 +43,13 @@ daita run my-agent --data-json '{"input": "hello"}'
 
 # Follow execution in real-time
 daita run my-agent --follow
+
+# Re-run a past execution and compare outcomes
+daita replay <execution_id>
+daita diff <execution_a> <execution_b>
+
+# Diagnose setup issues
+daita doctor
 ```
 
 ---
@@ -53,9 +60,10 @@ daita run my-agent --follow
 
 | Command | Description |
 |---------|-------------|
-| `daita init [name]` | Scaffold a new Daita project |
+| `daita init [name]` | Scaffold a new Daita project (agents/, workflows/, skills/) |
 | `daita create agent <name>` | Add a new agent from template |
 | `daita create workflow <name>` | Add a new workflow from template |
+| `daita create skill <name>` | Add a new skill (instructions + tools) from template |
 | `daita test [target]` | Run agents/workflows locally |
 | `daita push` | Deploy the current project to the cloud |
 | `daita status` | Show project and deployment status |
@@ -68,9 +76,17 @@ daita run my-agent --follow
 | `daita agents show <id>` | Show agent details |
 | `daita agents deployed` | List deployed agents |
 | `daita run <target>` | Execute an agent or workflow remotely |
+| `daita replay <execution_id>` | Re-run an execution with identical inputs |
+| `daita diff <exec_a> <exec_b>` | Compare two executions (status, duration, cost, spans) |
 | `daita executions list` | List recent executions |
 | `daita executions show <id>` | Show execution details and result |
 | `daita executions cancel <id>` | Cancel a running execution |
+
+### Diagnostics
+
+| Command | Description |
+|---------|-------------|
+| `daita doctor` | Run environment + platform connectivity checks with copy-pasteable fixes |
 
 ### Observability
 
@@ -78,7 +94,7 @@ daita run my-agent --follow
 |---------|-------------|
 | `daita traces list` | List execution traces |
 | `daita traces show <id>` | Show trace details |
-| `daita traces spans <id>` | Show span hierarchy |
+| `daita traces spans <id>` | Show span timeline (ASCII on TTY, structured JSON on pipe) |
 | `daita traces decisions <id>` | Show AI decision events |
 | `daita traces stats` | Trace statistics (24h/7d/30d) |
 | `daita logs` | View deployment logs |
@@ -86,8 +102,6 @@ daita run my-agent --follow
 | `daita operations stats` | Operation statistics |
 | `daita memory status` | Show memory system status |
 | `daita memory show <workspace>` | Show workspace memory contents |
-| `daita conversations list` | List conversations |
-| `daita conversations show <id>` | Show conversation details |
 
 ### Infrastructure
 
@@ -122,7 +136,7 @@ Output defaults to JSON automatically when stdout is not a TTY (e.g. in scripts 
 
 ## MCP Server
 
-`daita-cli` ships a full [Model Context Protocol](https://modelcontextprotocol.io) server with ~30 tools, letting coding agents (Claude Code, Codex, Cursor, etc.) interact with your Daita platform directly.
+`daita-cli` ships a full [Model Context Protocol](https://modelcontextprotocol.io) server with 35 tools, letting coding agents (Claude Code, Codex, Cursor, etc.) interact with your Daita platform directly. Tools stream MCP progress notifications during long runs and return structured JSON that coding agents can act on without parsing terminal output.
 
 ### Start the server
 
@@ -153,15 +167,15 @@ Add to your project's `.mcp.json`:
 | Category | Tools |
 |----------|-------|
 | Agents | `list_agents`, `get_agent`, `list_deployed_agents` |
-| Executions | `run_agent`, `list_executions`, `get_execution`, `cancel_execution`, `get_execution_stats` |
-| Traces | `list_traces`, `get_trace`, `get_trace_spans`, `get_trace_decisions`, `get_trace_stats` |
-| Deployments | `list_deployments`, `get_deployment_history`, `rollback_deployment`, `delete_deployment` |
+| Executions | `run_agent`, `list_executions`, `get_execution`, `cancel_execution`, `get_execution_stats`, `replay_execution`, `diff_executions` |
+| Traces | `list_traces`, `get_trace`, `get_trace_spans`, `get_trace_decisions`, `get_trace_stats`, `get_trace_timeline` |
+| Deployments | `list_deployments`, `get_deployment_history`, `delete_deployment` |
 | Schedules | `list_schedules`, `get_schedule`, `pause_schedule`, `resume_schedule` |
 | Memory | `get_memory_status`, `get_workspace_memory` |
 | Secrets | `list_secrets`, `set_secret`, `delete_secret` |
 | Webhooks | `list_webhooks` |
-| Conversations | `list_conversations`, `get_conversation`, `create_conversation`, `delete_conversation` |
-| Local dev | `init_project`, `create_agent`, `create_workflow`, `test_agent` |
+| Diagnostics | `doctor` |
+| Local dev | `init_project`, `create_agent`, `create_workflow`, `create_skill`, `test_agent` |
 
 ---
 
@@ -172,6 +186,7 @@ Add to your project's `.mcp.json`:
 | `DAITA_API_KEY` | API key (required) |
 | `DAITA_API_ENDPOINT` | Override the API base URL (default: `https://api.daita-tech.io`) |
 | `DAITA_OUTPUT` | Default output format: `json`, `text`, or `table` |
+| `DAITA_NO_SPINNER` | Set to any value to disable progress spinners |
 
 ---
 

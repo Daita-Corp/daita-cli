@@ -52,6 +52,22 @@ def create_workflow(ctx, name):
         sys.exit(1)
 
 
+@create_group.command("skill")
+@click.argument("name")
+@click.pass_context
+def create_skill(ctx, name):
+    """Create a new skill."""
+    obj = ctx.obj or {}
+    formatter = obj.get("formatter", OutputFormatter())
+    try:
+        _create_component("skill", name, formatter)
+    except click.ClickException:
+        raise
+    except Exception as e:
+        formatter.error("ERROR", str(e))
+        sys.exit(1)
+
+
 def _to_class_name(name: str) -> str:
     return "".join(w.capitalize() for w in name.replace("-", "_").split("_") if w)
 
@@ -60,27 +76,31 @@ def _clean_name(name: str) -> str:
     return name.replace("-", "_").lower()
 
 
+_TEMPLATE_CONFIG = {
+    "agent": {"dir": "agents", "builder": "_agent_template"},
+    "workflow": {"dir": "workflows", "builder": "_workflow_template"},
+    "skill": {"dir": "skills", "builder": "_skill_template"},
+}
+
+
 def _create_component(template: str, name: str, formatter: OutputFormatter):
     project_root = ensure_project_root()
     clean_name = _clean_name(name)
     class_name = _to_class_name(clean_name)
 
-    if template == "agent":
-        dest_dir = project_root / "agents"
-        dest_file = dest_dir / f"{clean_name}.py"
-        if dest_file.exists():
-            raise click.ClickException(f"Agent '{clean_name}' already exists.")
-        dest_dir.mkdir(exist_ok=True)
-        dest_file.write_text(_agent_template(clean_name, class_name))
-    elif template == "workflow":
-        dest_dir = project_root / "workflows"
-        dest_file = dest_dir / f"{clean_name}.py"
-        if dest_file.exists():
-            raise click.ClickException(f"Workflow '{clean_name}' already exists.")
-        dest_dir.mkdir(exist_ok=True)
-        dest_file.write_text(_workflow_template(clean_name, class_name))
-    else:
+    cfg = _TEMPLATE_CONFIG.get(template)
+    if cfg is None:
         raise click.ClickException(f"Unknown template: {template}")
+
+    dest_dir = project_root / cfg["dir"]
+    dest_file = dest_dir / f"{clean_name}.py"
+    if dest_file.exists():
+        raise click.ClickException(
+            f"{template.capitalize()} '{clean_name}' already exists."
+        )
+    dest_dir.mkdir(exist_ok=True)
+    builder = globals()[cfg["builder"]]
+    dest_file.write_text(builder(clean_name, class_name))
 
     # Prompt for display name (non-interactive: use default)
     default_display = clean_name.replace("_", " ").title()
@@ -100,7 +120,9 @@ def _create_component(template: str, name: str, formatter: OutputFormatter):
     )
 
 
-def _update_config(project_root: Path, component_key: str, name: str, display_name: str):
+def _update_config(
+    project_root: Path, component_key: str, name: str, display_name: str
+):
     cfg_file = project_root / "daita-project.yaml"
     if cfg_file.exists():
         with open(cfg_file) as f:
@@ -110,12 +132,14 @@ def _update_config(project_root: Path, component_key: str, name: str, display_na
 
     config.setdefault(component_key, [])
     if not any(c["name"] == name for c in config[component_key]):
-        config[component_key].append({
-            "name": name,
-            "display_name": display_name,
-            "type": "standard" if component_key == "agents" else "basic",
-            "created_at": datetime.now().isoformat(),
-        })
+        config[component_key].append(
+            {
+                "name": name,
+                "display_name": display_name,
+                "type": "standard" if component_key == "agents" else "basic",
+                "created_at": datetime.now().isoformat(),
+            }
+        )
         with open(cfg_file, "w") as f:
             yaml.dump(config, f, default_flow_style=False)
 
@@ -179,4 +203,43 @@ if __name__ == "__main__":
         print("Done")
 
     asyncio.run(main())
+'''
+
+
+def _skill_template(name: str, class_name: str) -> str:
+    return f'''\
+"""
+{class_name} Skill
+
+Skills bundle domain-specific instructions with related tools. Attach to any
+agent via `agent.add_skill({name}_skill)` to layer in behavior without
+mutating the base prompt.
+"""
+from daita.skills import Skill
+from daita.core.tools import tool
+
+
+@tool
+async def example_tool(payload: dict) -> dict:
+    """Replace with a real tool relevant to this skill."""
+    return {{"ok": True, "received": payload}}
+
+
+{name}_skill = Skill(
+    name="{name}",
+    description="Describe what this skill teaches the agent to do.",
+    instructions=(
+        "Describe the behavioral guidance this skill provides. "
+        "Agents that add this skill will receive these instructions at runtime."
+    ),
+    tools=[example_tool],
+)
+
+
+if __name__ == "__main__":
+    # Attach to an agent:
+    #
+    #     from skills.{name} import {name}_skill
+    #     agent.add_skill({name}_skill)
+    print(f"Skill: {{{name}_skill.name}} — {{{name}_skill.description}}")
 '''

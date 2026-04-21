@@ -16,7 +16,9 @@ from daita_cli.output import OutputFormatter
 
 @click.command("logs")
 @click.option("--follow", "-f", is_flag=True, help="Poll for new deployments")
-@click.option("--lines", "-n", default=10, show_default=True, help="Number of deployments to show")
+@click.option(
+    "--lines", "-n", default=10, show_default=True, help="Number of deployments to show"
+)
 @click.pass_context
 def logs_command(ctx, follow, lines):
     """View deployment logs."""
@@ -36,7 +38,12 @@ def logs_command(ctx, follow, lines):
 
         if formatter.is_json:
             import json
-            print(json.dumps({"deployments": deployments, "count": len(deployments)}, default=str))
+
+            print(
+                json.dumps(
+                    {"deployments": deployments, "count": len(deployments)}, default=str
+                )
+            )
             return
 
         scope = f" ({project_name})" if project_name else " (Organization)"
@@ -98,6 +105,7 @@ def _print_deployments(deployments):
 def _local_project_name() -> str | None:
     try:
         import yaml
+
         current = Path.cwd()
         for p in [current] + list(current.parents):
             cfg = p / "daita-project.yaml"

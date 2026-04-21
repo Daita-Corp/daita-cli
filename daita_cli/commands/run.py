@@ -29,12 +29,16 @@ def _fmt_elapsed(s: float) -> str:
 
 @click.command("run")
 @click.argument("target")
-@click.option("--type", "target_type", default="agent", type=click.Choice(["agent", "workflow"]))
+@click.option(
+    "--type", "target_type", default="agent", type=click.Choice(["agent", "workflow"])
+)
 @click.option("--data", "data_file", help="JSON file with input data")
 @click.option("--data-json", help="JSON string with input data")
 @click.option("--task", default="process", show_default=True)
 @click.option("--follow", "-f", is_flag=True, help="Follow progress in real-time")
-@click.option("--timeout", default=300, show_default=True, type=int, help="Timeout seconds")
+@click.option(
+    "--timeout", default=300, show_default=True, type=int, help="Timeout seconds"
+)
 @click.pass_context
 def run_command(ctx, target, target_type, data_file, data_json, task, follow, timeout):
     """Execute an agent or workflow remotely."""
@@ -60,7 +64,10 @@ def run_command(ctx, target, target_type, data_file, data_json, task, follow, ti
             "data": input_data,
             "timeout_seconds": timeout,
             "execution_source": "cli",
-            "source_metadata": {"cli_version": __version__, "command": f"daita run {target}"},
+            "source_metadata": {
+                "cli_version": __version__,
+                "command": f"daita run {target}",
+            },
         }
         if target_type == "agent":
             request["agent_name"] = target
@@ -77,7 +84,9 @@ def run_command(ctx, target, target_type, data_file, data_json, task, follow, ti
                 # JSON mode: poll silently
                 await _poll(client, formatter, execution_id, target, timeout)
             else:
-                await _poll_with_spinner(client, formatter, execution_id, target, timeout)
+                await _poll_with_spinner(
+                    client, formatter, execution_id, target, timeout
+                )
 
     try:
         asyncio.run(_run())
@@ -107,12 +116,16 @@ async def _poll(client, formatter, execution_id, agent_name, timeout):
             formatter.success(data)
             return
         if status in ("failed", "error"):
-            formatter.error("EXECUTION_FAILED", data.get("error", "Execution failed"), data)
+            formatter.error(
+                "EXECUTION_FAILED", data.get("error", "Execution failed"), data
+            )
             sys.exit(1)
         if status == "cancelled":
             formatter.error("EXECUTION_CANCELLED", "Execution was cancelled")
             sys.exit(1)
-    formatter.error("TIMEOUT", f"Execution timed out after {timeout}s. ID: {execution_id}")
+    formatter.error(
+        "TIMEOUT", f"Execution timed out after {timeout}s. ID: {execution_id}"
+    )
     sys.exit(1)
 
 
@@ -129,7 +142,9 @@ async def _poll_with_spinner(client, formatter, execution_id, agent_name, timeou
             if use_ansi:
                 frame = _SPINNER[frame_idx % len(_SPINNER)]
                 elapsed = _fmt_elapsed(time.time() - start)
-                sys.stdout.write(f"\r\033[K  {frame}  {agent_name}  {status}  {elapsed}")
+                sys.stdout.write(
+                    f"\r\033[K  {frame}  {agent_name}  {status}  {elapsed}"
+                )
                 sys.stdout.flush()
                 frame_idx += 1
             await asyncio.sleep(0.08)
@@ -145,7 +160,9 @@ async def _poll_with_spinner(client, formatter, execution_id, agent_name, timeou
             if status in ("completed", "success"):
                 elapsed = _fmt_elapsed(time.time() - start)
                 if use_ansi:
-                    sys.stdout.write(f"\r\033[K  ✓  {agent_name}  completed  {elapsed}\n")
+                    sys.stdout.write(
+                        f"\r\033[K  ✓  {agent_name}  completed  {elapsed}\n"
+                    )
                     sys.stdout.flush()
                 _print_result(data)
                 return
