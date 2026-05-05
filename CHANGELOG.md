@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.0] — 2026-05-05
+
+Eval tooling release for local development, cloud run history, and MCP-driven
+agent workflows.
+
+### Added
+
+- **`daita eval [config]`** — run eval suites from project `evals/` configs.
+  Local runs support case filtering, rerunning failed cases, run-count
+  overrides, judge overrides, baseline recording/comparison, artifact controls,
+  and `pretty`, `json`, `markdown`, or `junit` output.
+- **Cloud eval execution** via `daita eval --cloud`, using the hosted eval APIs
+  in the production environment. Cloud runs can be selected by config path,
+  suite name, or suite id and poll until a canonical report is available.
+- **Cloud eval history commands**:
+  - `daita eval runs` lists past cloud eval runs.
+  - `daita eval runs show <eval_run_id>` shows one run summary.
+  - `daita eval runs report <eval_run_id>` fetches the canonical run report.
+  - `daita eval suites` lists registered cloud eval suites.
+  - `daita eval suites show <eval_suite_id>` shows one suite config snapshot.
+- **Eval project scaffold in `daita init`** — new projects now include an
+  `evals/` directory, a starter eval config, and an `evals` section in
+  `daita-project.yaml`.
+- **MCP eval tools**: `list_eval_suites`, `get_eval_suite`, `list_eval_runs`,
+  `get_eval_run`, `get_eval_report`, and `run_eval_suite`.
+- Shared cloud eval helper module used by both CLI and MCP callers.
+
+### Changed
+
+- **MCP list tools now return smaller default payloads** for agents,
+  deployments, eval suites, and eval runs by projecting API responses into
+  compact summary fields.
+- **MCP deployment listing now defaults to active deployments** and defensively
+  filters inactive records out of the response.
+- **MCP trace spans default to a smaller response** with a lower default limit
+  and omitted span attributes unless explicitly requested.
+- **Workspace memory MCP queries use a smaller default limit** to reduce context
+  flooding for coding agents.
+
+---
+
 ## [0.2.0] — 2026-04-20
 
 First feature release after the standalone-repo split from `daita-agents`.
