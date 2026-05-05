@@ -23,7 +23,6 @@ Design:
 
 from __future__ import annotations
 
-import asyncio
 import json
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
@@ -33,6 +32,12 @@ from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
 from daita_cli.api_client import DaitaAPIClient
+from daita_cli.eval_cloud import (
+    PRODUCTION_ENVIRONMENT,
+    build_eval_execute_request,
+    submit_eval_suite,
+    wait_for_eval_report,
+)
 from daita_cli.output import OutputFormatter
 
 app = Server("daita-platform")
@@ -55,6 +60,57 @@ class ToolDef:
 
 
 _REGISTRY: dict[str, ToolDef] = {}
+
+_AGENT_SUMMARY_FIELDS = {
+    "id": ("agent_id", "id"),
+    "name": ("agent_name", "name"),
+    "type": ("agent_type", "type"),
+    "status": ("status",),
+    "deployment_id": ("deployment_id",),
+    "updated_at": ("updated_at", "last_activity_at", "created_at"),
+}
+
+_DEPLOYMENT_SUMMARY_FIELDS = {
+    "deployment_id": ("deployment_id", "id"),
+    "project_name": ("project_name", "project"),
+    "environment": ("environment",),
+    "version": ("version", "framework_version"),
+    "status": ("status",),
+    "agent_count": ("agent_count",),
+    "workflow_count": ("workflow_count",),
+    "deployed_at": ("deployed_at", "created_at"),
+}
+
+_EVAL_SUITE_SUMMARY_FIELDS = {
+    "eval_suite_id": ("eval_suite_id", "id"),
+    "name": ("name",),
+    "project_name": ("project_name",),
+    "agent_name": ("agent_name",),
+    "workflow_name": ("workflow_name",),
+    "config_path": ("config_path",),
+    "status": ("status",),
+    "updated_at": ("updated_at",),
+}
+
+_EVAL_RUN_SUMMARY_FIELDS = {
+    "eval_run_id": ("eval_run_id", "id"),
+    "eval_suite_id": ("eval_suite_id",),
+    "suite_name": ("suite_name",),
+    "project_name": ("project_name",),
+    "status": ("status",),
+    "score": ("score",),
+    "summary": ("summary",),
+    "created_at": ("created_at",),
+}
+
+_SPAN_SUMMARY_FIELDS = {
+    "span_id": ("span_id", "spanId", "id"),
+    "parent_span_id": ("parent_span_id", "parentSpanId"),
+    "name": ("name", "operationName", "operation_name"),
+    "status": ("status",),
+    "duration_ms": ("duration_ms", "duration"),
+    "start_time": ("start_time", "startTime"),
+}
 
 
 def tool(
@@ -140,6 +196,74 @@ async def _emit_progress(
         pass
 
 
+def _pick(item: dict, *keys: str, default: Any = None) -> Any:
+    for key in keys:
+        if key in item and item[key] not in (None, ""):
+            return item[key]
+    return default
+
+
+def _project(item: dict, fields: dict[str, tuple[str, ...]]) -> dict:
+    return {name: _pick(item, *keys) for name, keys in fields.items()}
+
+
+def _summarize_items(
+    data: Any, collection_key: str, fields: dict[str, tuple[str, ...]]
+) -> Any:
+    if not isinstance(data, dict):
+        return data
+    items = data.get(collection_key)
+    if not isinstance(items, list):
+        return data
+    return {**data, collection_key: [_project(item, fields) for item in items]}
+
+
+def _summarize_agent_list(data: Any) -> Any:
+    for key in ("agents", "items"):
+        data = _summarize_items(data, key, _AGENT_SUMMARY_FIELDS)
+    return data
+
+
+def _summarize_deployment_list(data: Any) -> Any:
+    return _summarize_items(data, "deployments", _DEPLOYMENT_SUMMARY_FIELDS)
+
+
+def _summarize_eval_suite_list(data: Any) -> Any:
+    return _summarize_items(data, "suites", _EVAL_SUITE_SUMMARY_FIELDS)
+
+
+def _summarize_eval_run_list(data: Any) -> Any:
+    return _summarize_items(data, "runs", _EVAL_RUN_SUMMARY_FIELDS)
+
+
+def _eval_report_view(report: dict, detail: str) -> dict:
+    if detail == "full":
+        return report
+    base = {
+        "schema_version": report.get("schema_version"),
+        "run_id": report.get("run_id"),
+        "suite": report.get("suite"),
+        "agent": report.get("agent"),
+        "status": report.get("status"),
+        "score": report.get("score"),
+        "summary": report.get("summary"),
+        "artifact_path": report.get("artifact_path"),
+        "artifact_s3_bucket": report.get("artifact_s3_bucket"),
+        "artifact_s3_prefix": report.get("artifact_s3_prefix"),
+    }
+    failures = report.get("failures") or []
+    if detail == "summary":
+        return {**base, "failure_count": len(failures)}
+    return {**base, "failures": failures}
+
+
+def _span_summary(span: dict, *, include_attributes: bool) -> dict:
+    summary = _project(span, _SPAN_SUMMARY_FIELDS)
+    if include_attributes:
+        summary["attributes"] = _pick(span, "attributes", "metadata", default={})
+    return summary
+
+
 # ---------------------------------------------------------------------------
 # Agents
 # ---------------------------------------------------------------------------
@@ -164,7 +288,8 @@ async def list_agents(client: DaitaAPIClient, args: dict) -> list[TextContent]:
         for k in ("agent_type", "status_filter", "page", "per_page")
         if k in args
     }
-    return _ok(await client.get("/api/v1/agents/agents", params=params or None))
+    data = await client.get("/api/v1/agents/agents", params=params or None)
+    return _ok(_summarize_agent_list(data))
 
 
 @tool(
@@ -195,11 +320,10 @@ async def get_agent(client: DaitaAPIClient, args: dict) -> list[TextContent]:
     },
 )
 async def list_deployed_agents(client: DaitaAPIClient, args: dict) -> list[TextContent]:
-    return _ok(
-        await client.get(
-            "/api/v1/agents/agents/deployed", params={"limit": args.get("limit", 20)}
-        )
+    data = await client.get(
+        "/api/v1/agents/agents/deployed", params={"limit": args.get("limit", 20)}
     )
+    return _ok(_summarize_agent_list(data))
 
 
 # ---------------------------------------------------------------------------
@@ -209,18 +333,22 @@ async def list_deployed_agents(client: DaitaAPIClient, args: dict) -> list[TextC
 
 @tool(
     name="list_deployments",
-    description="List deployments for the current API key.",
+    description="List active deployments for the current API key.",
     input_schema={
         "type": "object",
         "properties": {"limit": {"type": "integer", "default": 10}},
     },
 )
 async def list_deployments(client: DaitaAPIClient, args: dict) -> list[TextContent]:
-    return _ok(
-        await client.get(
-            "/api/v1/deployments/api-key", params={"per_page": args.get("limit", 10)}
-        )
+    data = await client.get(
+        "/api/v1/deployments/api-key",
+        params={"per_page": args.get("limit", 10), "status": "active"},
     )
+    deployments = data.get("deployments")
+    if isinstance(deployments, list):
+        active = [item for item in deployments if item.get("status") == "active"]
+        data = {**data, "deployments": active, "total_count": len(active)}
+    return _ok(_summarize_deployment_list(data))
 
 
 @tool(
@@ -489,6 +617,195 @@ async def diff_executions_tool(client: DaitaAPIClient, args: dict) -> list[TextC
 
 
 # ---------------------------------------------------------------------------
+# Evals
+# ---------------------------------------------------------------------------
+
+
+@tool(
+    name="list_eval_suites",
+    description=(
+        "List registered cloud eval suites for the current organization. "
+        "Use before run_eval_suite when you need suite IDs, config paths, or names."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "project_name": {"type": "string"},
+            "agent_name": {"type": "string"},
+            "status": {"type": "string", "default": "active"},
+            "page": {"type": "integer", "default": 1},
+            "per_page": {"type": "integer", "default": 20},
+        },
+    },
+)
+async def list_eval_suites(client: DaitaAPIClient, args: dict) -> list[TextContent]:
+    params = {
+        "environment": PRODUCTION_ENVIRONMENT,
+        "page": args.get("page", 1),
+        "per_page": args.get("per_page", 20),
+    }
+    for key in ("project_name", "agent_name", "status"):
+        if args.get(key):
+            params[key] = args[key]
+    data = await client.get("/api/v1/evals/suites", params=params)
+    return _ok(_summarize_eval_suite_list(data))
+
+
+@tool(
+    name="get_eval_suite",
+    description="Get one registered cloud eval suite by eval_suite_id.",
+    input_schema={
+        "type": "object",
+        "properties": {"eval_suite_id": {"type": "string"}},
+        "required": ["eval_suite_id"],
+    },
+)
+async def get_eval_suite(client: DaitaAPIClient, args: dict) -> list[TextContent]:
+    return _ok(await client.get(f"/api/v1/evals/suites/{args['eval_suite_id']}"))
+
+
+@tool(
+    name="list_eval_runs",
+    description=(
+        "List cloud eval run history. Filter by eval_suite_id, project_name, or status."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "eval_suite_id": {"type": "string"},
+            "project_name": {"type": "string"},
+            "status": {"type": "string"},
+            "page": {"type": "integer", "default": 1},
+            "per_page": {"type": "integer", "default": 20},
+        },
+    },
+)
+async def list_eval_runs(client: DaitaAPIClient, args: dict) -> list[TextContent]:
+    params = {
+        "environment": PRODUCTION_ENVIRONMENT,
+        "page": args.get("page", 1),
+        "per_page": args.get("per_page", 20),
+    }
+    for key in ("eval_suite_id", "project_name", "status"):
+        if args.get(key):
+            params[key] = args[key]
+    data = await client.get("/api/v1/evals/runs", params=params)
+    return _ok(_summarize_eval_run_list(data))
+
+
+@tool(
+    name="get_eval_run",
+    description="Get one cloud eval run summary by eval_run_id.",
+    input_schema={
+        "type": "object",
+        "properties": {"eval_run_id": {"type": "string"}},
+        "required": ["eval_run_id"],
+    },
+)
+async def get_eval_run(client: DaitaAPIClient, args: dict) -> list[TextContent]:
+    return _ok(await client.get(f"/api/v1/evals/runs/{args['eval_run_id']}"))
+
+
+@tool(
+    name="get_eval_report",
+    description=(
+        "Get the canonical report.json for a cloud eval run. "
+        "This is the best tool for coding agents diagnosing failed eval cases."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "eval_run_id": {"type": "string"},
+            "detail": {
+                "type": "string",
+                "enum": ["failures", "summary", "full"],
+                "default": "failures",
+            },
+        },
+        "required": ["eval_run_id"],
+    },
+)
+async def get_eval_report(client: DaitaAPIClient, args: dict) -> list[TextContent]:
+    report = await client.get(f"/api/v1/evals/runs/{args['eval_run_id']}/report")
+    return _ok(_eval_report_view(report, args.get("detail", "failures")))
+
+
+@tool(
+    name="run_eval_suite",
+    description=(
+        "Run a registered eval suite in Daita cloud and poll until complete. "
+        "Provide one of eval_suite_id, suite_name, or config_path. "
+        "Returns a compact eval report by default."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "eval_suite_id": {"type": "string"},
+            "suite_name": {"type": "string"},
+            "project_name": {"type": "string"},
+            "config_path": {
+                "type": "string",
+                "description": "Path such as evals/sales.yaml from the deployed project",
+            },
+            "timeout_seconds": {"type": "integer", "default": 900},
+            "detail": {
+                "type": "string",
+                "enum": ["failures", "summary", "full"],
+                "default": "failures",
+            },
+        },
+    },
+)
+async def run_eval_suite(client: DaitaAPIClient, args: dict) -> list[TextContent]:
+    timeout = float(args.get("timeout_seconds", 900))
+    request = build_eval_execute_request(
+        timeout_seconds=int(timeout),
+        trigger_source="api",
+        source_metadata={"source": "mcp", "tool": "run_eval_suite"},
+        eval_suite_id=args.get("eval_suite_id"),
+        suite_name=args.get("suite_name"),
+        project_name=args.get("project_name"),
+        config_path=args.get("config_path"),
+    )
+
+    submitted = await submit_eval_suite(client, request)
+    execution_id = submitted["execution_id"]
+
+    progress_token = _progress_token()
+    await _emit_progress(progress_token, 0.0, timeout, f"queued: {execution_id}")
+
+    async def _on_poll(data: dict, elapsed: float):
+        await _emit_progress(
+            progress_token,
+            min(elapsed, timeout),
+            timeout,
+            f"{data.get('status') or 'polling'}: {execution_id}",
+        )
+
+    try:
+        report = await wait_for_eval_report(
+            client,
+            submitted,
+            timeout_seconds=timeout,
+            on_poll=_on_poll,
+        )
+    except TimeoutError:
+        raise TimeoutError(
+            f"Eval suite did not complete within {timeout:.0f}s. "
+            f"execution_id={execution_id} - inspect with get_execution."
+        )
+    except LookupError:
+        return _ok(
+            {
+                "status": "completed",
+                "execution_id": execution_id,
+                "message": "Eval completed but no eval run report was found yet.",
+            }
+        )
+    return _ok(_eval_report_view(report, args.get("detail", "failures")))
+
+
+# ---------------------------------------------------------------------------
 # Traces
 # ---------------------------------------------------------------------------
 
@@ -526,15 +843,34 @@ async def get_trace(client: DaitaAPIClient, args: dict) -> list[TextContent]:
 
 @tool(
     name="get_trace_spans",
-    description="Get span hierarchy for a trace.",
+    description="Get summarized span hierarchy for a trace. Defaults to 100 spans without attributes.",
     input_schema={
         "type": "object",
-        "properties": {"trace_id": {"type": "string"}},
+        "properties": {
+            "trace_id": {"type": "string"},
+            "limit": {"type": "integer", "default": 100},
+            "include_attributes": {"type": "boolean", "default": False},
+        },
         "required": ["trace_id"],
     },
 )
 async def get_trace_spans(client: DaitaAPIClient, args: dict) -> list[TextContent]:
-    return _ok(await client.get(f"/api/v1/traces/traces/{args['trace_id']}/spans"))
+    raw = await client.get(f"/api/v1/traces/traces/{args['trace_id']}/spans")
+    spans = raw if isinstance(raw, list) else raw.get("spans", raw.get("items", []))
+    limit = int(args.get("limit", 100))
+    include_attributes = bool(args.get("include_attributes", False))
+    return _ok(
+        {
+            "trace_id": args["trace_id"],
+            "spans": [
+                _span_summary(span, include_attributes=include_attributes)
+                for span in spans[:limit]
+            ],
+            "count": min(len(spans), limit),
+            "total_count": len(spans),
+            "truncated": len(spans) > limit,
+        }
+    )
 
 
 @tool(
@@ -684,14 +1020,14 @@ async def get_memory_status(client: DaitaAPIClient, args: dict) -> list[TextCont
         "type": "object",
         "properties": {
             "workspace": {"type": "string"},
-            "limit": {"type": "integer", "default": 50},
+            "limit": {"type": "integer", "default": 20},
             "project": {"type": "string"},
         },
         "required": ["workspace", "project"],
     },
 )
 async def get_workspace_memory(client: DaitaAPIClient, args: dict) -> list[TextContent]:
-    params = {"limit": args.get("limit", 50), "project": args["project"]}
+    params = {"limit": args.get("limit", 20), "project": args["project"]}
     return _ok(
         await client.get(
             f"/api/v1/memory/workspaces/{args['workspace']}", params=params

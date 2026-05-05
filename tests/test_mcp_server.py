@@ -18,6 +18,10 @@ async def test_list_tools_returns_all():
     assert "get_trace" in names
     assert "list_secrets" in names
     assert "init_project" in names
+    assert "list_eval_suites" in names
+    assert "list_eval_runs" in names
+    assert "get_eval_report" in names
+    assert "run_eval_suite" in names
 
 
 @pytest.mark.asyncio
@@ -38,13 +42,53 @@ async def test_list_agents_tool(monkeypatch):
     with respx.mock(base_url="https://api.daita-tech.io") as mock:
         mock.get("/api/v1/agents/agents").mock(
             return_value=httpx.Response(
-                200, json={"agents": [{"id": "a1", "name": "my_agent"}]}
+                200,
+                json={
+                    "agents": [
+                        {
+                            "id": "a1",
+                            "name": "my_agent",
+                            "status": "active",
+                            "tools": ["large", "metadata"],
+                        }
+                    ]
+                },
             )
         )
         result = await call_tool("list_agents", {})
     assert len(result) == 1
     data = json.loads(result[0].text)
     assert "agents" in data
+    assert "tools" not in data["agents"][0]
+
+
+@pytest.mark.asyncio
+async def test_list_deployments_tool_returns_only_active(monkeypatch):
+    monkeypatch.setenv("DAITA_API_KEY", "test-key")
+    with respx.mock(base_url="https://api.daita-tech.io") as mock:
+        route = mock.get("/api/v1/deployments/api-key").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "deployments": [
+                        {
+                            "deployment_id": "dep-active",
+                            "status": "active",
+                            "deployment_info": {"large": True},
+                        },
+                        {"deployment_id": "dep-inactive", "status": "inactive"},
+                    ],
+                    "total_count": 2,
+                },
+            )
+        )
+        result = await call_tool("list_deployments", {"limit": 10})
+
+    assert route.calls.last.request.url.params["status"] == "active"
+    data = json.loads(result[0].text)
+    assert data["total_count"] == 1
+    assert data["deployments"][0]["deployment_id"] == "dep-active"
+    assert "deployment_info" not in data["deployments"][0]
 
 
 @pytest.mark.asyncio
@@ -156,3 +200,144 @@ async def test_run_agent_timeout_raises(monkeypatch):
                     "timeout_seconds": 2,  # short so the test finishes fast
                 },
             )
+
+
+@pytest.mark.asyncio
+async def test_list_eval_suites_tool(monkeypatch):
+    monkeypatch.setenv("DAITA_API_KEY", "test-key")
+    with respx.mock(base_url="https://api.daita-tech.io") as mock:
+        mock.get("/api/v1/evals/suites").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "suites": [
+                        {
+                            "eval_suite_id": "suite-1",
+                            "name": "sales",
+                            "environment": "production",
+                            "config_json": {"large": True},
+                        }
+                    ],
+                    "total_count": 1,
+                },
+            )
+        )
+        result = await call_tool("list_eval_suites", {"project_name": "demo"})
+    data = json.loads(result[0].text)
+    assert data["suites"][0]["name"] == "sales"
+    assert "config_json" not in data["suites"][0]
+
+
+@pytest.mark.asyncio
+async def test_get_eval_report_tool(monkeypatch):
+    monkeypatch.setenv("DAITA_API_KEY", "test-key")
+    with respx.mock(base_url="https://api.daita-tech.io") as mock:
+        mock.get("/api/v1/evals/runs/run-1/report").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "status": "failed",
+                    "suite": {"name": "sales"},
+                    "failures": [{"case_id": "top-products"}],
+                    "cases": [{"case_id": "large"}],
+                },
+            )
+        )
+        result = await call_tool("get_eval_report", {"eval_run_id": "run-1"})
+    data = json.loads(result[0].text)
+    assert data["suite"]["name"] == "sales"
+    assert data["failures"][0]["case_id"] == "top-products"
+    assert "cases" not in data
+
+
+@pytest.mark.asyncio
+async def test_get_trace_spans_summarizes_and_limits(monkeypatch):
+    monkeypatch.setenv("DAITA_API_KEY", "test-key")
+    with respx.mock(base_url="https://api.daita-tech.io") as mock:
+        mock.get("/api/v1/traces/traces/trace-1/spans").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "spans": [
+                        {
+                            "span_id": "span-1",
+                            "name": "agent_run",
+                            "duration_ms": 100,
+                            "attributes": {"large": True},
+                        },
+                        {
+                            "span_id": "span-2",
+                            "name": "llm_call",
+                            "duration_ms": 50,
+                        },
+                    ]
+                },
+            )
+        )
+        result = await call_tool("get_trace_spans", {"trace_id": "trace-1", "limit": 1})
+    data = json.loads(result[0].text)
+    assert data["count"] == 1
+    assert data["total_count"] == 2
+    assert data["truncated"] is True
+    assert "attributes" not in data["spans"][0]
+
+
+@pytest.mark.asyncio
+async def test_get_workspace_memory_defaults_to_smaller_limit(monkeypatch):
+    monkeypatch.setenv("DAITA_API_KEY", "test-key")
+    with respx.mock(base_url="https://api.daita-tech.io") as mock:
+        route = mock.get("/api/v1/memory/workspaces/main").mock(
+            return_value=httpx.Response(200, json={"items": []})
+        )
+        await call_tool(
+            "get_workspace_memory", {"workspace": "main", "project": "demo"}
+        )
+    assert route.calls.last.request.url.params["limit"] == "20"
+
+
+@pytest.mark.asyncio
+async def test_run_eval_suite_polls_and_returns_report(monkeypatch):
+    monkeypatch.setenv("DAITA_API_KEY", "test-key")
+    with respx.mock(base_url="https://api.daita-tech.io") as mock:
+        mock.post("/api/v1/evals/runs/execute").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "execution_id": "exec-eval-1",
+                    "eval_suite_id": "suite-1",
+                    "project_name": "demo",
+                },
+            )
+        )
+        mock.get("/api/v1/executions/exec-eval-1").mock(
+            return_value=httpx.Response(
+                200,
+                json={"status": "completed", "execution_id": "exec-eval-1"},
+            )
+        )
+        mock.get("/api/v1/evals/runs").mock(
+            return_value=httpx.Response(
+                200,
+                json={"runs": [{"eval_run_id": "run-1"}], "total_count": 1},
+            )
+        )
+        mock.get("/api/v1/evals/runs/run-1/report").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "status": "failed",
+                    "suite": {"name": "sales"},
+                    "cases": [{"id": "case-1", "status": "passed"}],
+                    "failures": [{"case_id": "case-2", "message": "expected match"}],
+                },
+            )
+        )
+        result = await call_tool(
+            "run_eval_suite",
+            {"eval_suite_id": "suite-1", "timeout_seconds": 30},
+        )
+    data = json.loads(result[0].text)
+    assert data["status"] == "failed"
+    assert data["suite"]["name"] == "sales"
+    assert data["failures"] == [{"case_id": "case-2", "message": "expected match"}]
+    assert "cases" not in data

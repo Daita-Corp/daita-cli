@@ -12,6 +12,7 @@ Usage:
     daita secrets list
     daita webhooks list
     daita run <agent>
+    daita eval [config]       # requires daita-agents
     daita replay <execution_id>
     daita diff <exec_a> <exec_b>
     daita doctor
@@ -45,6 +46,7 @@ from daita_cli.commands.push import push_command
 from daita_cli.commands.init import init_command
 from daita_cli.commands.create import create_group
 from daita_cli.commands.test import test_command
+from daita_cli.commands.eval import eval_command
 from daita_cli.commands.replay import replay_command
 from daita_cli.commands.diff import diff_command
 from daita_cli.commands.doctor import doctor_command
@@ -88,6 +90,7 @@ cli.add_command(push_command)
 cli.add_command(init_command)
 cli.add_command(create_group)
 cli.add_command(test_command)
+cli.add_command(eval_command)
 
 
 # Backward compat hidden alias: `daita execution-logs <id>` → `daita executions logs <id>`
