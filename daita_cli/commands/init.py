@@ -62,6 +62,7 @@ async def _init(project_name, project_type, force, formatter):
     _create_structure(project_dir)
     _create_config(project_dir, project_name)
     _create_starter_files(project_dir, project_name)
+    _create_eval_files(project_dir, project_name)
     _create_support_files(project_dir, project_name)
 
     if not formatter.is_json:
@@ -81,6 +82,7 @@ async def _init(project_name, project_type, force, formatter):
         click.echo(
             f"   skills/     reusable instructions + tools attachable to any agent"
         )
+        click.echo(f"   evals/      agent evaluation suites")
         click.echo(f"   tests/      pytest suite")
         click.echo(f"   data/       local test fixtures")
     else:
@@ -88,7 +90,7 @@ async def _init(project_name, project_type, force, formatter):
 
 
 def _create_structure(project_dir: Path):
-    for d in [".daita", "agents", "workflows", "skills", "data", "tests"]:
+    for d in [".daita", "agents", "workflows", "skills", "evals", "data", "tests"]:
         (project_dir / d).mkdir(exist_ok=True)
     for d in ["agents", "workflows", "skills", "tests"]:
         init = project_dir / d / "__init__.py"
@@ -112,6 +114,7 @@ def _create_config(project_dir: Path, project_name: str):
         "agents": [],
         "workflows": [],
         "skills": [],
+        "evals": [],
     }
     with open(project_dir / "daita-project.yaml", "w") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
@@ -246,6 +249,46 @@ if __name__ == "__main__":
     (project_dir / "agents" / "my_agent.py").write_text(agent_code)
     (project_dir / "workflows" / "my_workflow.py").write_text(workflow_code)
     (project_dir / "skills" / "example_skill.py").write_text(skill_code)
+
+
+def _create_eval_files(project_dir: Path, project_name: str):
+    eval_config = '''\
+name: starter-agent-evals
+version: 1
+
+agent:
+  factory: "agents.my_agent:create_agent"
+  label: "Data Processor"
+
+defaults:
+  runs: 1
+  run_mode: sequential_same_agent
+  pass_rule: all_runs
+  max_iterations: 8
+  timeout_seconds: 60
+  max_tool_calls: 4
+
+artifacts:
+  output_dir: ".daita/evals/runs"
+  include_full_answers: true
+  include_tool_outputs: false
+
+cases:
+  - id: basic-statistics
+    prompt: "Analyze these sales numbers: [100, 250, 175, 300, 225]"
+    expectations:
+      answer:
+        contains:
+          - "100"
+          - "300"
+      tools:
+        required:
+          - "calculate_stats"
+        max_calls: 2
+      budgets:
+        max_latency_ms: 30000
+'''
+    (project_dir / "evals" / "starter-agent.yaml").write_text(eval_config)
 
 
 def _create_support_files(project_dir: Path, project_name: str):
