@@ -1102,6 +1102,172 @@ async def list_webhooks(client: DaitaAPIClient, args: dict) -> list[TextContent]
 
 
 @tool(
+    name="get_local_agent_server_status",
+    description="Get health and runtime-store status from a local Daita Agent Server.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "server_url": {
+                "type": "string",
+                "default": "http://127.0.0.1:8123",
+            }
+        },
+    },
+    needs_client=False,
+)
+async def get_local_agent_server_status_tool(args: dict) -> list[TextContent]:
+    from daita_cli.local_server_client import get_local_agent_server_status
+
+    return _ok(
+        await get_local_agent_server_status(
+            args.get("server_url", "http://127.0.0.1:8123")
+        )
+    )
+
+
+@tool(
+    name="list_local_server_agents",
+    description="List agents loaded by a local Daita Agent Server.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "server_url": {
+                "type": "string",
+                "default": "http://127.0.0.1:8123",
+            }
+        },
+    },
+    needs_client=False,
+)
+async def list_local_server_agents_tool(args: dict) -> list[TextContent]:
+    from daita_cli.local_server_client import list_local_server_agents
+
+    return _ok(
+        await list_local_server_agents(
+            args.get("server_url", "http://127.0.0.1:8123")
+        )
+    )
+
+
+@tool(
+    name="call_local_agent",
+    description="Run a prompt through a local Daita Agent Server and return JSON.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "server_url": {
+                "type": "string",
+                "default": "http://127.0.0.1:8123",
+            },
+            "agent_name": {"type": "string"},
+            "prompt": {"type": "string"},
+            "session_id": {"type": "string"},
+            "include_evidence": {"type": "boolean", "default": True},
+            "include_tasks": {"type": "boolean", "default": True},
+            "include_telemetry": {"type": "boolean", "default": True},
+        },
+        "required": ["agent_name", "prompt"],
+    },
+    needs_client=False,
+)
+async def call_local_agent_tool(args: dict) -> list[TextContent]:
+    from daita_cli.local_server_client import call_local_agent
+
+    return _ok(
+        await call_local_agent(
+            args["agent_name"],
+            args["prompt"],
+            server_url=args.get("server_url", "http://127.0.0.1:8123"),
+            session_id=args.get("session_id"),
+            include_evidence=args.get("include_evidence", True),
+            include_tasks=args.get("include_tasks", True),
+            include_telemetry=args.get("include_telemetry", True),
+        )
+    )
+
+
+@tool(
+    name="get_local_server_runtime_operation",
+    description="Get a local runtime operation by operation_id.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "server_url": {
+                "type": "string",
+                "default": "http://127.0.0.1:8123",
+            },
+            "operation_id": {"type": "string"},
+        },
+        "required": ["operation_id"],
+    },
+    needs_client=False,
+)
+async def get_local_server_runtime_operation_tool(args: dict) -> list[TextContent]:
+    from daita_cli.local_server_client import get_local_server_runtime_operation
+
+    return _ok(
+        await get_local_server_runtime_operation(
+            args["operation_id"],
+            args.get("server_url", "http://127.0.0.1:8123"),
+        )
+    )
+
+
+@tool(
+    name="get_local_server_operation_evidence",
+    description="Get stable evidence array for a local runtime operation.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "server_url": {
+                "type": "string",
+                "default": "http://127.0.0.1:8123",
+            },
+            "operation_id": {"type": "string"},
+        },
+        "required": ["operation_id"],
+    },
+    needs_client=False,
+)
+async def get_local_server_operation_evidence_tool(args: dict) -> list[TextContent]:
+    from daita_cli.local_server_client import get_local_server_operation_evidence
+
+    return _ok(
+        await get_local_server_operation_evidence(
+            args["operation_id"],
+            args.get("server_url", "http://127.0.0.1:8123"),
+        )
+    )
+
+
+@tool(
+    name="get_local_server_operation_tasks",
+    description="Get stable task array for a local runtime operation.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "server_url": {
+                "type": "string",
+                "default": "http://127.0.0.1:8123",
+            },
+            "operation_id": {"type": "string"},
+        },
+        "required": ["operation_id"],
+    },
+    needs_client=False,
+)
+async def get_local_server_operation_tasks_tool(args: dict) -> list[TextContent]:
+    from daita_cli.local_server_client import get_local_server_operation_tasks
+
+    return _ok(
+        await get_local_server_operation_tasks(
+            args["operation_id"],
+            args.get("server_url", "http://127.0.0.1:8123"),
+        )
+    )
+
+
+@tool(
     name="init_project",
     description="Scaffold a new Daita project in the current directory.",
     input_schema={

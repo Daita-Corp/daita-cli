@@ -22,6 +22,8 @@ Usage:
     daita init [name]        # requires daita-agents
     daita create agent|workflow <name>  # requires daita-agents
     daita test [target]      # requires daita-agents
+    daita dev --agent agents/revenue.py
+    daita db dev --agent agents/revenue.py
     daita mcp-server
 """
 
@@ -50,6 +52,8 @@ from daita_cli.commands.eval import eval_command
 from daita_cli.commands.replay import replay_command
 from daita_cli.commands.diff import diff_command
 from daita_cli.commands.doctor import doctor_command
+from daita_cli.commands.dev import dev_command
+from daita_cli.commands.db import db_group
 
 
 @click.group()
@@ -84,6 +88,8 @@ cli.add_command(diff_command)
 cli.add_command(doctor_command)
 cli.add_command(status_command)
 cli.add_command(logs_command)
+cli.add_command(dev_command)
+cli.add_command(db_group)
 
 # Commands that delegate to daita-agents (shows clear error if not installed)
 cli.add_command(push_command)

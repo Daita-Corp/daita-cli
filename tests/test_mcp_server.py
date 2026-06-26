@@ -22,6 +22,12 @@ async def test_list_tools_returns_all():
     assert "list_eval_runs" in names
     assert "get_eval_report" in names
     assert "run_eval_suite" in names
+    assert "get_local_agent_server_status" in names
+    assert "list_local_server_agents" in names
+    assert "call_local_agent" in names
+    assert "get_local_server_runtime_operation" in names
+    assert "get_local_server_operation_evidence" in names
+    assert "get_local_server_operation_tasks" in names
 
 
 @pytest.mark.asyncio
@@ -141,6 +147,87 @@ async def test_local_tools_do_not_require_framework(monkeypatch):
 
     # test_agent is the only local tool that needs it.
     assert mcp._REGISTRY["test_agent"].needs_framework is True
+    assert mcp._REGISTRY["call_local_agent"].needs_framework is False
+    assert mcp._REGISTRY["call_local_agent"].needs_client is False
+
+
+@pytest.mark.asyncio
+async def test_local_agent_server_mcp_tools(respx_mock):
+    base = "http://127.0.0.1:8123"
+    respx_mock.get(f"{base}/health").mock(
+        return_value=httpx.Response(200, json={"status": "ok", "agents": ["revenue"]})
+    )
+    respx_mock.get(f"{base}/agents").mock(
+        return_value=httpx.Response(
+            200, json={"agents": [{"name": "revenue"}], "count": 1}
+        )
+    )
+    respx_mock.post(f"{base}/agents/revenue/runs").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "answer": "ok",
+                "operation_id": "op_1",
+                "status": "completed",
+                "warnings": [],
+                "runtime": {
+                    "tasks": [],
+                    "evidence": [],
+                    "events": [],
+                    "telemetry": {},
+                },
+            },
+        )
+    )
+    respx_mock.get(f"{base}/runtime/operations/op_1").mock(
+        return_value=httpx.Response(200, json={"operation_id": "op_1"})
+    )
+    respx_mock.get(f"{base}/runtime/operations/op_1/evidence").mock(
+        return_value=httpx.Response(
+            200, json={"operation_id": "op_1", "evidence": []}
+        )
+    )
+    respx_mock.get(f"{base}/runtime/operations/op_1/tasks").mock(
+        return_value=httpx.Response(200, json={"operation_id": "op_1", "tasks": []})
+    )
+
+    status = json.loads((await call_tool("get_local_agent_server_status", {}))[0].text)
+    agents = json.loads((await call_tool("list_local_server_agents", {}))[0].text)
+    run = json.loads(
+        (
+            await call_tool(
+                "call_local_agent", {"agent_name": "revenue", "prompt": "hello"}
+            )
+        )[0].text
+    )
+    operation = json.loads(
+        (
+            await call_tool(
+                "get_local_server_runtime_operation", {"operation_id": "op_1"}
+            )
+        )[0].text
+    )
+    evidence = json.loads(
+        (
+            await call_tool(
+                "get_local_server_operation_evidence", {"operation_id": "op_1"}
+            )
+        )[0].text
+    )
+    tasks = json.loads(
+        (
+            await call_tool(
+                "get_local_server_operation_tasks", {"operation_id": "op_1"}
+            )
+        )[0].text
+    )
+
+    assert status["status"] == "ok"
+    assert agents["agents"][0]["name"] == "revenue"
+    assert run["operation_id"] == "op_1"
+    assert operation["operation_id"] == "op_1"
+    assert evidence["evidence"] == []
+    assert tasks["tasks"] == []
 
 
 @pytest.mark.asyncio
