@@ -16,6 +16,10 @@ async def test_local_agent_server_mcp_tools_register_without_api_key():
     assert "get_local_agent_server_status" in names
     assert "list_local_server_agents" in names
     assert "call_local_agent" in names
+    assert "run_db_agent_local" in names
+    assert "inspect_db_agent_local" in names
+    assert "get_db_agent_operation_evidence_local" in names
+    assert "get_db_agent_operation_tasks_local" in names
     assert "get_local_server_runtime_operation" in names
     assert "get_local_server_operation_evidence" in names
     assert "get_local_server_operation_tasks" in names
@@ -23,11 +27,16 @@ async def test_local_agent_server_mcp_tools_register_without_api_key():
 
 @pytest.mark.asyncio
 async def test_local_agent_server_mcp_tools_return_structured_json(monkeypatch):
+    monkeypatch.delenv("DAITA_API_KEY", raising=False)
+
     async def status(server_url):
         return {"status": "ok", "server_url": server_url}
 
     async def agents(server_url):
         return {"agents": [{"name": "revenue"}]}
+
+    async def inspect(agent_name, server_url):
+        return {"name": agent_name, "server_url": server_url}
 
     async def run(agent_name, prompt, **kwargs):
         return {
@@ -49,6 +58,7 @@ async def test_local_agent_server_mcp_tools_return_structured_json(monkeypatch):
 
     monkeypatch.setattr(local_server_client, "get_local_agent_server_status", status)
     monkeypatch.setattr(local_server_client, "list_local_server_agents", agents)
+    monkeypatch.setattr(local_server_client, "get_local_server_agent", inspect)
     monkeypatch.setattr(local_server_client, "call_local_agent", run)
     monkeypatch.setattr(
         local_server_client, "get_local_server_runtime_operation", operation
@@ -69,6 +79,18 @@ async def test_local_agent_server_mcp_tools_return_structured_json(monkeypatch):
             )
         )[0].text
     )
+    db_run_result = json.loads(
+        (
+            await call_tool(
+                "run_db_agent_local", {"agent_name": "revenue", "prompt": "hello"}
+            )
+        )[0].text
+    )
+    db_inspect_result = json.loads(
+        (
+            await call_tool("inspect_db_agent_local", {"agent_name": "revenue"})
+        )[0].text
+    )
     operation_result = json.loads(
         (
             await call_tool(
@@ -83,6 +105,13 @@ async def test_local_agent_server_mcp_tools_return_structured_json(monkeypatch):
             )
         )[0].text
     )
+    db_evidence_result = json.loads(
+        (
+            await call_tool(
+                "get_db_agent_operation_evidence_local", {"operation_id": "op_1"}
+            )
+        )[0].text
+    )
     tasks_result = json.loads(
         (
             await call_tool(
@@ -90,10 +119,21 @@ async def test_local_agent_server_mcp_tools_return_structured_json(monkeypatch):
             )
         )[0].text
     )
+    db_tasks_result = json.loads(
+        (
+            await call_tool(
+                "get_db_agent_operation_tasks_local", {"operation_id": "op_1"}
+            )
+        )[0].text
+    )
 
     assert status_result["status"] == "ok"
     assert agents_result["agents"][0]["name"] == "revenue"
     assert run_result["operation_id"] == "op_1"
+    assert db_run_result["operation_id"] == "op_1"
+    assert db_inspect_result["name"] == "revenue"
     assert operation_result["operation_id"] == "op_1"
     assert evidence_result["evidence"] == []
+    assert db_evidence_result["evidence"] == []
     assert tasks_result["tasks"] == []
+    assert db_tasks_result["tasks"] == []

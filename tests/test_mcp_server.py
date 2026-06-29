@@ -22,6 +22,9 @@ async def test_list_tools_returns_all():
     assert "list_eval_runs" in names
     assert "get_eval_report" in names
     assert "run_eval_suite" in names
+    assert "list_database_agents" in names
+    assert "get_database_agent" in names
+    assert "refresh_database_agent_catalog" in names
     assert "get_local_agent_server_status" in names
     assert "list_local_server_agents" in names
     assert "call_local_agent" in names
@@ -149,6 +152,10 @@ async def test_local_tools_do_not_require_framework(monkeypatch):
     assert mcp._REGISTRY["test_agent"].needs_framework is True
     assert mcp._REGISTRY["call_local_agent"].needs_framework is False
     assert mcp._REGISTRY["call_local_agent"].needs_client is False
+    assert mcp._REGISTRY["run_db_agent_local"].needs_client is False
+    assert mcp._REGISTRY["inspect_db_agent_local"].needs_client is False
+    assert mcp._REGISTRY["get_db_agent_operation_evidence_local"].needs_client is False
+    assert mcp._REGISTRY["get_db_agent_operation_tasks_local"].needs_client is False
 
 
 @pytest.mark.asyncio
@@ -161,6 +168,9 @@ async def test_local_agent_server_mcp_tools(respx_mock):
         return_value=httpx.Response(
             200, json={"agents": [{"name": "revenue"}], "count": 1}
         )
+    )
+    respx_mock.get(f"{base}/agents/revenue").mock(
+        return_value=httpx.Response(200, json={"name": "revenue", "kind": "db"})
     )
     respx_mock.post(f"{base}/agents/revenue/runs").mock(
         return_value=httpx.Response(
@@ -200,6 +210,18 @@ async def test_local_agent_server_mcp_tools(respx_mock):
             )
         )[0].text
     )
+    db_run = json.loads(
+        (
+            await call_tool(
+                "run_db_agent_local", {"agent_name": "revenue", "prompt": "hello"}
+            )
+        )[0].text
+    )
+    db_inspect = json.loads(
+        (
+            await call_tool("inspect_db_agent_local", {"agent_name": "revenue"})
+        )[0].text
+    )
     operation = json.loads(
         (
             await call_tool(
@@ -214,6 +236,13 @@ async def test_local_agent_server_mcp_tools(respx_mock):
             )
         )[0].text
     )
+    db_evidence = json.loads(
+        (
+            await call_tool(
+                "get_db_agent_operation_evidence_local", {"operation_id": "op_1"}
+            )
+        )[0].text
+    )
     tasks = json.loads(
         (
             await call_tool(
@@ -221,13 +250,24 @@ async def test_local_agent_server_mcp_tools(respx_mock):
             )
         )[0].text
     )
+    db_tasks = json.loads(
+        (
+            await call_tool(
+                "get_db_agent_operation_tasks_local", {"operation_id": "op_1"}
+            )
+        )[0].text
+    )
 
     assert status["status"] == "ok"
     assert agents["agents"][0]["name"] == "revenue"
     assert run["operation_id"] == "op_1"
+    assert db_run["operation_id"] == "op_1"
+    assert db_inspect["name"] == "revenue"
     assert operation["operation_id"] == "op_1"
     assert evidence["evidence"] == []
+    assert db_evidence["evidence"] == []
     assert tasks["tasks"] == []
+    assert db_tasks["tasks"] == []
 
 
 @pytest.mark.asyncio

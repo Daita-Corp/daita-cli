@@ -10,7 +10,6 @@ Usage:
     daita operations list
     daita memory status
     daita secrets list
-    daita webhooks list
     daita run <agent>
     daita eval [config]       # requires daita-agents
     daita replay <execution_id>
@@ -40,7 +39,6 @@ from daita_cli.commands.schedules import schedules
 from daita_cli.commands.operations import operations
 from daita_cli.commands.memory import memory
 from daita_cli.commands.secrets import secrets
-from daita_cli.commands.webhooks import webhooks
 from daita_cli.commands.run import run_command
 from daita_cli.commands.status import status_command
 from daita_cli.commands.logs import logs_command
@@ -81,7 +79,6 @@ cli.add_command(schedules)
 cli.add_command(operations)
 cli.add_command(memory)
 cli.add_command(secrets)
-cli.add_command(webhooks)
 cli.add_command(run_command)
 cli.add_command(replay_command)
 cli.add_command(diff_command)

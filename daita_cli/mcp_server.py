@@ -32,6 +32,12 @@ from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
 from daita_cli.api_client import DaitaAPIClient
+from daita_cli.db_agents import (
+    get_database_agent as get_hosted_database_agent,
+    list_database_agents as list_hosted_database_agents,
+    refresh_database_agent_catalog as refresh_hosted_database_agent_catalog,
+    summarize_database_agent_list,
+)
 from daita_cli.eval_cloud import (
     PRODUCTION_ENVIRONMENT,
     build_eval_execute_request,
@@ -324,6 +330,48 @@ async def list_deployed_agents(client: DaitaAPIClient, args: dict) -> list[TextC
         "/api/v1/agents/agents/deployed", params={"limit": args.get("limit", 20)}
     )
     return _ok(_summarize_agent_list(data))
+
+
+@tool(
+    name="list_database_agents",
+    description="List hosted database agents with compact stable fields.",
+    input_schema={"type": "object", "properties": {}},
+)
+async def list_database_agents_tool(
+    client: DaitaAPIClient, args: dict
+) -> list[TextContent]:
+    data = await list_hosted_database_agents(client)
+    return _ok(summarize_database_agent_list(data))
+
+
+@tool(
+    name="get_database_agent",
+    description="Get hosted database-agent details by ID.",
+    input_schema={
+        "type": "object",
+        "properties": {"agent_id": {"type": "string"}},
+        "required": ["agent_id"],
+    },
+)
+async def get_database_agent_tool(
+    client: DaitaAPIClient, args: dict
+) -> list[TextContent]:
+    return _ok(await get_hosted_database_agent(client, args["agent_id"]))
+
+
+@tool(
+    name="refresh_database_agent_catalog",
+    description="Refresh a hosted database-agent catalog by ID.",
+    input_schema={
+        "type": "object",
+        "properties": {"agent_id": {"type": "string"}},
+        "required": ["agent_id"],
+    },
+)
+async def refresh_database_agent_catalog_tool(
+    client: DaitaAPIClient, args: dict
+) -> list[TextContent]:
+    return _ok(await refresh_hosted_database_agent_catalog(client, args["agent_id"]))
 
 
 # ---------------------------------------------------------------------------
@@ -1083,20 +1131,6 @@ async def delete_secret(client: DaitaAPIClient, args: dict) -> list[TextContent]
 
 
 # ---------------------------------------------------------------------------
-# Webhooks
-# ---------------------------------------------------------------------------
-
-
-@tool(
-    name="list_webhooks",
-    description="List webhook URLs for the organization.",
-    input_schema={"type": "object", "properties": {}},
-)
-async def list_webhooks(client: DaitaAPIClient, args: dict) -> list[TextContent]:
-    return _ok(await client.get("/api/v1/webhooks/list"))
-
-
-# ---------------------------------------------------------------------------
 # Local dev tools (no API key required)
 # ---------------------------------------------------------------------------
 
@@ -1187,6 +1221,70 @@ async def call_local_agent_tool(args: dict) -> list[TextContent]:
 
 
 @tool(
+    name="run_db_agent_local",
+    description="Run a local DB agent through the local Daita Agent Server.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "server_url": {
+                "type": "string",
+                "default": "http://127.0.0.1:8123",
+            },
+            "agent_name": {"type": "string"},
+            "prompt": {"type": "string"},
+            "session_id": {"type": "string"},
+            "include_evidence": {"type": "boolean", "default": True},
+            "include_tasks": {"type": "boolean", "default": True},
+            "include_telemetry": {"type": "boolean", "default": True},
+        },
+        "required": ["agent_name", "prompt"],
+    },
+    needs_client=False,
+)
+async def run_db_agent_local_tool(args: dict) -> list[TextContent]:
+    from daita_cli.local_server_client import call_local_agent
+
+    return _ok(
+        await call_local_agent(
+            args["agent_name"],
+            args["prompt"],
+            server_url=args.get("server_url", "http://127.0.0.1:8123"),
+            session_id=args.get("session_id"),
+            include_evidence=args.get("include_evidence", True),
+            include_tasks=args.get("include_tasks", True),
+            include_telemetry=args.get("include_telemetry", True),
+        )
+    )
+
+
+@tool(
+    name="inspect_db_agent_local",
+    description="Inspect a local DB agent through the local Daita Agent Server.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "server_url": {
+                "type": "string",
+                "default": "http://127.0.0.1:8123",
+            },
+            "agent_name": {"type": "string"},
+        },
+        "required": ["agent_name"],
+    },
+    needs_client=False,
+)
+async def inspect_db_agent_local_tool(args: dict) -> list[TextContent]:
+    from daita_cli.local_server_client import get_local_server_agent
+
+    return _ok(
+        await get_local_server_agent(
+            args["agent_name"],
+            args.get("server_url", "http://127.0.0.1:8123"),
+        )
+    )
+
+
+@tool(
     name="get_local_server_runtime_operation",
     description="Get a local runtime operation by operation_id.",
     input_schema={
@@ -1241,6 +1339,35 @@ async def get_local_server_operation_evidence_tool(args: dict) -> list[TextConte
 
 
 @tool(
+    name="get_db_agent_operation_evidence_local",
+    description="Get local DB-agent runtime evidence by operation_id.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "server_url": {
+                "type": "string",
+                "default": "http://127.0.0.1:8123",
+            },
+            "operation_id": {"type": "string"},
+        },
+        "required": ["operation_id"],
+    },
+    needs_client=False,
+)
+async def get_db_agent_operation_evidence_local_tool(
+    args: dict,
+) -> list[TextContent]:
+    from daita_cli.local_server_client import get_local_server_operation_evidence
+
+    return _ok(
+        await get_local_server_operation_evidence(
+            args["operation_id"],
+            args.get("server_url", "http://127.0.0.1:8123"),
+        )
+    )
+
+
+@tool(
     name="get_local_server_operation_tasks",
     description="Get stable task array for a local runtime operation.",
     input_schema={
@@ -1257,6 +1384,33 @@ async def get_local_server_operation_evidence_tool(args: dict) -> list[TextConte
     needs_client=False,
 )
 async def get_local_server_operation_tasks_tool(args: dict) -> list[TextContent]:
+    from daita_cli.local_server_client import get_local_server_operation_tasks
+
+    return _ok(
+        await get_local_server_operation_tasks(
+            args["operation_id"],
+            args.get("server_url", "http://127.0.0.1:8123"),
+        )
+    )
+
+
+@tool(
+    name="get_db_agent_operation_tasks_local",
+    description="Get local DB-agent runtime tasks by operation_id.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "server_url": {
+                "type": "string",
+                "default": "http://127.0.0.1:8123",
+            },
+            "operation_id": {"type": "string"},
+        },
+        "required": ["operation_id"],
+    },
+    needs_client=False,
+)
+async def get_db_agent_operation_tasks_local_tool(args: dict) -> list[TextContent]:
     from daita_cli.local_server_client import get_local_server_operation_tasks
 
     return _ok(

@@ -116,7 +116,6 @@ daita doctor
 | `daita secrets list` | List secret key names |
 | `daita secrets set <key> <value>` | Store an encrypted secret |
 | `daita secrets remove <key>` | Delete a secret |
-| `daita webhooks list` | List webhook URLs |
 
 ---
 
@@ -173,7 +172,6 @@ Add to your project's `.mcp.json`:
 | Schedules | `list_schedules`, `get_schedule`, `pause_schedule`, `resume_schedule` |
 | Memory | `get_memory_status`, `get_workspace_memory` |
 | Secrets | `list_secrets`, `set_secret`, `delete_secret` |
-| Webhooks | `list_webhooks` |
 | Diagnostics | `doctor` |
 | Local dev | `init_project`, `create_agent`, `create_workflow`, `create_skill`, `test_agent` |
 
